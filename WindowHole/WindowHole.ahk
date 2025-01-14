@@ -2,7 +2,7 @@
 
 ; Script:    WindowHole.ahk
 ; Author:    Casper Harkin
-; Github:    
+; Github:    https://github.com/casperharkin/AHK-V2-Projects/blob/main/WindowHole/WindowHole.ahk
 ; Date:      14/01/2025
 ; Version:   1.0
 

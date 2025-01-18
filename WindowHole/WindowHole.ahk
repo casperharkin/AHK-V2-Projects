@@ -21,6 +21,7 @@
   Hotkeys:
   - F1: Toggle overlay on/off
   - F2: Freeze/unfreeze overlay position
+  - F3: Cycle through available shapes
   - ^WheelUp/^WheelDown: Increase/decrease overlay radius
   - ^LButton to send window under overlay to the back of the Z-order
 
@@ -31,24 +32,29 @@
 class WindowHole {
     ; Define hotkeys for controlling the overlay behavior
     static keys := {
-        Activate: 'F1',             ; Toggle overlay on/off
-        Freeze: 'F2',               ; Freeze/unfreeze overlay position
-        AdjustRadiusUp: '^WheelUp', ; Increase overlay radius
+        Activate: 'F1',                 ; Toggle overlay on/off
+        Freeze: 'F2',                   ; Freeze/unfreeze overlay position
+        ToggleShape: 'F3',              ; Toggle shape
+        AdjustRadiusUp: '^WheelUp',     ; Increase overlay radius
         AdjustRadiusDown: '^WheelDown', ; Decrease overlay radius
-        SendToBottom: '^LButton'    ; Send the window under overlay to back
+        SendToBottom: '^LButton'        ; Send the window under overlay to back
     }
 
     ; Constructor initializes properties
     __Init() {
         this.Toggle := 0                 ; Overlay toggle state (on/off)
+        this.ShapeType := "Circle"       ; Default shape
+        this.RegionIndex := 1            ; Default shape index  (1: Circle, 2: Rectangle, 3: RoundedRectangle, etc)
+        this.shapes := ["Circle",        ; Available shapes
+        "Rectangle", "RoundedRectangle"] ; "Polygon" shape is not implemented. 
         this.Radius := 200               ; Default overlay radius
         this.Increment := 25             ; Step size for resizing radius
-        this.Region := this.MakeCircle() ; Default shape (circle region)
         this.TimerFn := ""               ; Timer function reference
         this.hWin := ""                  ; Handle to the overlayed window
         this.AlwaysOnTop := ""           ; Overlay "Always on Top" state
         this.Rate := 1                   ; Timer refresh rate (ms)
         this.IsRunning := false          ; Tracks timer activity state
+        this.IsPaused := false           ; Tracks timer pause state
         SetWinDelay(-1)                  ; Optimizes window handling
         CoordMode("Mouse", "Screen")     ; Set mouse coordinates to screen
     }
@@ -61,6 +67,7 @@ class WindowHole {
         Hotkey(this.keys.AdjustRadiusUp, (*) => wh.AdjustRadius(1))
         Hotkey(this.keys.AdjustRadiusDown, (*) => wh.AdjustRadius(-1))
         Hotkey(this.keys.SendToBottom, (*) => wh.SendToBottom())
+        Hotkey(this.keys.ToggleShape, (*) => wh.ToggleShape())
     }
 
     ; Toggles the timer on/off
@@ -70,7 +77,6 @@ class WindowHole {
     AdjustRadius(direction) {
         if (this.IsRunning) {
             this.Radius := Max(1, this.Radius + direction * this.Increment)
-            this.Region := this.MakeCircle(this.Radius) ; Update shape
             this.TimerFunction(this.hWin, reset := 1) ; Restart to apply new radius
         } else {
             Send(direction = 1 ? "{WheelUp}" : "{WheelDown}") ; Default action
@@ -101,53 +107,108 @@ class WindowHole {
                 "Int", xPos, "Int", yPos, "Int", width, "Int", height, "UInt", SWP_NOSIZE := 0x4000)
     }
 
-    ; Sets a window's region for transparency
-    WinSetRegion(hWin, region, dx := 0, dy := 0) {
-        WinGetPos(, , &w, &h, "ahk_id " hWin)
-        regionDef := "0-0 0-" h " " w "-" h " " w "-0 0-0 "
-        for _, pt in region {
-            regionDef .= (dx + pt.x) "-" (dy + pt.y) " "
+    ToggleShape() {
+        for each, shape in this.shapes {
+            if (shape = this.ShapeType) {
+                this.ShapeType := this.shapes[this.RegionIndex := (this.RegionIndex >= this.shapes.length) ? 1 : this.RegionIndex + 1]
+                this.TimerFunction(this.hWin, reset := 1) 
+                break
+            }
         }
-        WinSetRegion(regionDef, "ahk_id " hWin)
     }
 
-    ; Creates a circular region for the overlay
-    MakeCircle(radius := this.Radius, numPoints := -1) {
-        static pi := ATan(1) * 4
-        numPoints := (numPoints = -1) ? Ceil(2 * radius * pi) : numPoints
-        numPoints := Min(numPoints, 1994) ; Limit number of points for stability
-        region := []
-        ; Generate points along the circle's perimeter
-        Loop numPoints + 1 {
-            theta := 2 * pi * (A_Index - 1) / numPoints
-            region.Push({x: Round(radius * Cos(theta)), y: Round(radius * Sin(theta))})
+    MakeShape(type, params := {}, xOffset := 0, yOffset := 0) {
+        switch type {
+            case "Circle":
+                left := xOffset - params.radius
+                top := yOffset - params.radius
+                right := xOffset + params.radius
+                bottom := yOffset + params.radius
+                return DllCall("CreateEllipticRgn", "int", left, "int", top, "int", right, "int", bottom, "ptr")
+
+            case "Rectangle":
+                left := xOffset - params.width / 2
+                top := yOffset - params.height / 2
+                right := xOffset + params.width / 2
+                bottom := yOffset + params.height / 2
+                return DllCall("CreateRectRgn", "int", left, "int", top, "int", right, "int", bottom, "ptr")
+
+            case "RoundedRectangle":
+                left := xOffset - params.width / 2
+                top := yOffset - params.height / 2
+                right := xOffset + params.width / 2
+                bottom := yOffset + params.height / 2
+                return DllCall("CreateRoundRectRgn", "int", left, "int", top, "int", right, "int", bottom,
+                    "int", params.roundWidth, "int", params.roundHeight, "ptr")
+            
+            ; case "Polygon":
+            ;     points := params.points
+            ;     buffery := buffer(16 * params.numPoints, 0)
+            ;     Loop params.numPoints {
+            ;         NumPut("int", points[A_Index].x + xOffset, buffery, (A_Index - 1) * 8)
+            ;         NumPut("int", points[A_Index].y + yOffset, buffery, (A_Index - 1) * 8 + 4)
+            ;     }
+            ;     return DllCall("CreatePolygonRgn", "uint", &buffery, "int", params.numPoints, "int", params.polyFillMode, "ptr")
+            
+            default:
+                
         }
-        return region
     }
 
-    ; Timer function for overlay positioning
+    MakeInvertedShape(hWin, type, params := {}, xOffset := 0, yOffset := 0) {
+        ; Get the window dimensions
+        rect := Buffer(16, 0) ; RECT structure: left, top, right, bottom
+        DllCall("GetClientRect", "ptr", hWin, "ptr", rect)
+        winWidth := NumGet(rect, 8, "int")  ; right - left
+        winHeight := NumGet(rect, 12, "int") ; bottom - top
+
+        ; Create a rectangular region covering the entire window
+        hRectRegion := DllCall("CreateRectRgn", "int", 0, "int", 0, "int", winWidth, "int", winHeight, "ptr")
+        
+        ; Create the specific shape region
+        hShapeRegion := this.MakeShape(type, params, xOffset, yOffset)
+
+        ; Subtract the shape region from the rectangular region
+        DllCall("CombineRgn", "ptr", hRectRegion, "ptr", hRectRegion, "ptr", hShapeRegion, "int", 4) ; RGN_DIFF
+        DllCall("DeleteObject", "ptr", hShapeRegion) ; Clean up the shape region
+
+        return hRectRegion ; Return the resulting inverted region
+    }
+
     TimerFunction(hWin, reset := 0) {
         static px := "", py := ""
         WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " hWin)
         MouseGetPos(&x, &y)
 
-        ; Restart timer if mouse moves outside the overlay
-        if (x < wx || x > wx + ww || y < wy || y > wy + wh) {
-            this.RestartTimer()
-        } else {
-            x -= wx, y -= wy ; Relative to overlay window
-            if (x != px || y != py || reset) { ; Update only if position changes
-                px := x, py := y
-                this.WinSetRegion(hWin, this.Region, x, y)
-            }
+        if (x != px || y != py || reset) {
+            px := x, py := y
+            params := this.GetShapeParams()
+            hRegion := this.MakeInvertedShape(hWin, this.ShapeType, params, x - wx, y - wy)
+            DllCall("SetWindowRgn", "ptr", hWin, "ptr", hRegion, "int", True)
+        }
+    }
+
+    GetShapeParams() {
+        switch this.ShapeType {
+            case "Circle":
+                return {radius: this.Radius}
+            case "Rectangle":
+                return {width: this.Radius * 2, height: this.Radius * 2}
+            case "RoundedRectangle":
+                return {width: this.Radius * 4, height: this.Radius * 2, roundWidth: 30, roundHeight: 30}
+            ; case "Polygon":
+            ;     return { points: [{x: 0, y: 0}, {x: 50, y: 100}, {x: 100, y: 0}], numPoints: 3, polyFillMode: 1 }
         }
     }
 
     ; Starts the timer and initializes overlay
     StartTimer() {
-        if (!this.hWin) {
+        if  (this.IsPaused)
+            return this.StopTimer()
+
+        if (!this.hWin)
             this.InitializeWindow()
-        }
+
         this.TimerFn := this.TimerFunction.Bind(this, this.hWin)
         this.TimerFn.Call() ; Trigger initial region setup
         SetTimer(this.TimerFn, this.Rate)
@@ -164,6 +225,7 @@ class WindowHole {
         this.hWin := ""
         this.AlwaysOnTop := ""
         this.IsRunning := false
+        this.IsPaused := false
     }
 
     ; Pauses the timer without resetting
@@ -171,6 +233,7 @@ class WindowHole {
         if (this.TimerFn) {
             SetTimer(this.TimerFn, 0)
             this.IsRunning := false
+            this.IsPaused := true
         }
     }
 

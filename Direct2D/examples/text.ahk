@@ -107,6 +107,7 @@ animationPhase := 0
 Hotkey "F9", (*) => Reload()
 Hotkey "Escape", (*) => ExitApp()
 
+
 ; Drawing function
 RenderTextScene(scene, d2d) {
     global animationPhase

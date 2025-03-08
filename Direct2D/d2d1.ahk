@@ -63,6 +63,7 @@ class D2D1 {
     _drawing := 0
     _resourceManager := 0
     _textFormats := Map()
+    _interpolationMode := 1  ; Default to high quality (linear) interpolation
     
     ; Public properties
     width := 800
@@ -284,7 +285,7 @@ class D2D1 {
         this._matrixPtr := D2D1Structs.D2D1_MATRIX_3X2_F()
         
         pOut := 0
-        if (DllCall(this._vTable(this._renderTarget, 8), "Ptr", this._renderTarget, 
+        if (DllCall(this._vTable(this._renderTarget, 8), "Ptr", this._renderTarget,
                     "Ptr", this._colPtr, "Ptr", this._matrixPtr, "Ptr*", &pOut) != 0) {
             throw Error("Failed to create brush. Error: " DllCall("GetLastError", "uint"), -1)
         }
@@ -292,8 +293,8 @@ class D2D1 {
         this._brush := pOut
         this._resourceManager.addResource("Brush", pOut, this._vTable(pOut, 2))
         
-        ; Enable anti-aliasing
-        DllCall(this._vTable(this._renderTarget, 32), "Ptr", this._renderTarget, "Uint", 0)
+        ; Enable anti-aliasing by default
+        this.setAntialias(true)
     }
     
     /**
@@ -355,8 +356,34 @@ class D2D1 {
             DllCall(this._nrSize, "Ptr", this._renderTarget, "ptr", newSize)
         }
         
-        DllCall("MoveWindow", "Uptr", this.hwnd, "int", x, "int", y, 
+        DllCall("MoveWindow", "Uptr", this.hwnd, "int", x, "int", y,
                 "int", this.width, "int", this.height, "char", 1)
+    }
+    
+    /**
+     * Set antialiasing mode
+     * @param {Boolean} enable - Whether to enable antialiasing
+     */
+    setAntialias(enable := true) {
+        ; D2D1_ANTIALIAS_MODE_PER_PRIMITIVE = 0
+        ; D2D1_ANTIALIAS_MODE_ALIASED = 1
+        DllCall(this._vTable(this._renderTarget, 32), "Ptr", this._renderTarget, "Uint", enable ? 0 : 1)
+    }
+    
+    /**
+     * Set interpolation mode for image scaling
+     * @param {Integer} mode - Interpolation mode:
+     *                        0 = D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR (Low quality)
+     *                        1 = D2D1_BITMAP_INTERPOLATION_MODE_LINEAR (High quality)
+     */
+    setInterpolationMode(mode := 1) {
+        ; Validate mode
+        if (mode != 0 && mode != 1) {
+            throw Error("Invalid interpolation mode. Use 0 for nearest neighbor or 1 for linear.", -1)
+        }
+        
+        ; Store the interpolation mode for later use when drawing images
+        this._interpolationMode := mode
     }
     
     /**
@@ -381,6 +408,51 @@ class D2D1 {
     }
     
     /**
+     * Draw a circle outline with the specified color and thickness
+     * @param {Number} x - Center X coordinate
+     * @param {Number} y - Center Y coordinate
+     * @param {Number} radius - Circle radius
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded caps
+     */
+    drawCircle(x, y, radius, color, thickness := 1, rounded := 0) {
+        if (radius <= 0) {
+            throw Error("Invalid circle dimensions. Radius must be positive.", -1)
+        }
+        
+        this._setBrushColor(color)
+        DllCall(this._drawEllipse, "Ptr", this._renderTarget,
+                "Ptr", D2D1Structs.D2D_RECT_F(x, y, radius, radius),
+                "ptr", this._brush,
+                "float", thickness,
+                "ptr", (rounded ? this._strokeRounded : this._stroke))
+    }
+    
+    /**
+     * Draw an ellipse outline with the specified color and thickness
+     * @param {Number} x - Center X coordinate
+     * @param {Number} y - Center Y coordinate
+     * @param {Number} radiusX - X radius
+     * @param {Number} radiusY - Y radius
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded caps
+     */
+    drawEllipse(x, y, radiusX, radiusY, color, thickness := 1, rounded := 0) {
+        if (radiusX <= 0 || radiusY <= 0) {
+            throw Error("Invalid ellipse dimensions. Radii must be positive.", -1)
+        }
+        
+        this._setBrushColor(color)
+        DllCall(this._drawEllipse, "Ptr", this._renderTarget,
+                "Ptr", D2D1Structs.D2D_RECT_F(x, y, radiusX, radiusY),
+                "ptr", this._brush,
+                "float", thickness,
+                "ptr", (rounded ? this._strokeRounded : this._stroke))
+    }
+    
+    /**
      * Fill a circle with the specified color
      * @param {Number} x - Center X coordinate
      * @param {Number} y - Center Y coordinate
@@ -393,9 +465,32 @@ class D2D1 {
         }
         
         this._setBrushColor(color)
-        DllCall(this._fillEllipse, "Ptr", this._renderTarget, 
-                "Ptr", D2D1Structs.D2D_RECT_F(x, y, radius, radius), 
+        DllCall(this._fillEllipse, "Ptr", this._renderTarget,
+                "Ptr", D2D1Structs.D2D_RECT_F(x, y, radius, radius),
                 "ptr", this._brush)
+    }
+    
+    /**
+     * Draw a rectangle outline with the specified color and thickness
+     * @param {Number} x - Top-left X coordinate
+     * @param {Number} y - Top-left Y coordinate
+     * @param {Number} w - Width
+     * @param {Number} h - Height
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded corners
+     */
+    drawRectangle(x, y, w, h, color, thickness := 1, rounded := 0) {
+        if (w <= 0 || h <= 0) {
+            throw Error("Invalid rectangle dimensions. Width and height must be positive.", -1)
+        }
+        
+        this._setBrushColor(color)
+        DllCall(this._drawRectangle, "Ptr", this._renderTarget,
+                "Ptr", D2D1Structs.D2D_RECT_F(x, y, x+w, y+h),
+                "ptr", this._brush,
+                "float", thickness,
+                "ptr", (rounded ? this._strokeRounded : this._stroke))
     }
     
     /**
@@ -412,8 +507,82 @@ class D2D1 {
         }
         
         this._setBrushColor(color)
-        DllCall(this._fillRectangle, "Ptr", this._renderTarget, 
-                "Ptr", D2D1Structs.D2D_RECT_F(x, y, x+w, y+h), 
+        DllCall(this._fillRectangle, "Ptr", this._renderTarget,
+                "Ptr", D2D1Structs.D2D_RECT_F(x, y, x+w, y+h),
+                "ptr", this._brush)
+    }
+    
+    /**
+     * Draw a rounded rectangle outline with the specified color and thickness
+     * @param {Number} x - Top-left X coordinate
+     * @param {Number} y - Top-left Y coordinate
+     * @param {Number} w - Width
+     * @param {Number} h - Height
+     * @param {Number} radiusX - X radius of the rounded corners
+     * @param {Number} radiusY - Y radius of the rounded corners
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded caps
+     */
+    drawRoundedRectangle(x, y, w, h, radiusX, radiusY, color, thickness := 1, rounded := 0) {
+        if (w <= 0 || h <= 0) {
+            throw Error("Invalid rectangle dimensions. Width and height must be positive.", -1)
+        }
+        
+        if (radiusX <= 0 || radiusY <= 0) {
+            throw Error("Invalid corner radius. Radius must be positive.", -1)
+        }
+        
+        this._setBrushColor(color)
+        
+        ; Create rounded rectangle structure
+        bf := Buffer(24)
+        NumPut("float", x, bf, 0)
+        NumPut("float", y, bf, 4)
+        NumPut("float", x+w, bf, 8)
+        NumPut("float", y+h, bf, 12)
+        NumPut("float", radiusX, bf, 16)
+        NumPut("float", radiusY, bf, 20)
+        
+        DllCall(this._drawRoundedRectangle, "Ptr", this._renderTarget,
+                "Ptr", bf,
+                "ptr", this._brush,
+                "float", thickness,
+                "ptr", (rounded ? this._strokeRounded : this._stroke))
+    }
+    
+    /**
+     * Fill a rounded rectangle with the specified color
+     * @param {Number} x - Top-left X coordinate
+     * @param {Number} y - Top-left Y coordinate
+     * @param {Number} w - Width
+     * @param {Number} h - Height
+     * @param {Number} radiusX - X radius of the rounded corners
+     * @param {Number} radiusY - Y radius of the rounded corners
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     */
+    fillRoundedRectangle(x, y, w, h, radiusX, radiusY, color) {
+        if (w <= 0 || h <= 0) {
+            throw Error("Invalid rectangle dimensions. Width and height must be positive.", -1)
+        }
+        
+        if (radiusX <= 0 || radiusY <= 0) {
+            throw Error("Invalid corner radius. Radius must be positive.", -1)
+        }
+        
+        this._setBrushColor(color)
+        
+        ; Create rounded rectangle structure
+        bf := Buffer(24)
+        NumPut("float", x, bf, 0)
+        NumPut("float", y, bf, 4)
+        NumPut("float", x+w, bf, 8)
+        NumPut("float", y+h, bf, 12)
+        NumPut("float", radiusX, bf, 16)
+        NumPut("float", radiusY, bf, 20)
+        
+        DllCall(this._fillRoundedRectangle, "Ptr", this._renderTarget,
+                "Ptr", bf,
                 "ptr", this._brush)
     }
     
@@ -450,6 +619,71 @@ class D2D1 {
                     "float", thickness, 
                     "ptr", (rounded ? this._strokeRounded : this._stroke))
         }
+    }
+    
+    /**
+     * Draw a polygon outline with the specified color
+     * @param {Array} points - Array of 2D points, e.g. [[0,0],[5,0],[0,5]]
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded corners
+     * @param {Number} xOffset - X offset
+     * @param {Number} yOffset - Y offset
+     * @returns {Integer} 1 if successful, 0 otherwise
+     */
+    drawPolygon(points, color, thickness := 1, rounded := 0, xOffset := 0, yOffset := 0) {
+        if (points.Length < 3) {
+            throw Error("Invalid polygon. At least 3 points are required.", -1)
+        }
+        
+        pGeom := sink := 0
+        
+        if (DllCall(this._vTable(this._factory, 10), "Ptr", this._factory, "Ptr*", &pGeom) = 0) {
+            if (DllCall(this._vTable(pGeom, 17), "Ptr", pGeom, "Ptr*", &sink) = 0) {
+                this._setBrushColor(color)
+                
+                if (this._is64Bit) {
+                    bf := Buffer(64)
+                    NumPut("float", points[1][1] + xOffset, bf, 0)
+                    NumPut("float", points[1][2] + yOffset, bf, 4)
+                    DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 1)
+                    
+                    loop points.Length - 1 {
+                        NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
+                        NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
+                        DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double"))
+                    }
+                    
+                    DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
+                    DllCall(this._vTable(sink, 9), "ptr", sink)
+                } else {
+                    DllCall(this._vTable(sink, 5), "ptr", sink,
+                            "float", points[1][1] + xOffset,
+                            "float", points[1][2] + yOffset, "uint", 1)
+                    
+                    loop points.Length - 1
+                        DllCall(this._vTable(sink, 10), "ptr", sink,
+                                "float", points[A_Index + 1][1] + xOffset,
+                                "float", points[A_Index + 1][2] + yOffset)
+                    
+                    DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
+                    DllCall(this._vTable(sink, 9), "ptr", sink)
+                }
+                
+                if (DllCall(this._vTable(this._renderTarget, 22), "Ptr", this._renderTarget,
+                            "Ptr", pGeom, "ptr", this._brush, "float", thickness,
+                            "ptr", (rounded ? this._strokeRounded : this._stroke)) = 0) {
+                    DllCall(this._vTable(sink, 2), "ptr", sink)
+                    DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
+                    return 1
+                }
+                
+                DllCall(this._vTable(sink, 2), "ptr", sink)
+                DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
+            }
+        }
+        
+        return 0
     }
     
     /**
@@ -512,6 +746,63 @@ class D2D1 {
         }
         
         return 0
+    }
+    
+    
+    /**
+     * Reset the transform matrix to identity
+     * @private
+     */
+    _resetTransform() {
+        matrix := D2D1Structs.D2D1_MATRIX_3X2_F()
+        DllCall(this._rMatrix, "ptr", this._renderTarget, "ptr", matrix)
+    }
+    
+    /**
+     * Draw a placeholder for an image that failed to load
+     * @param {String} imagePath - Path to the image file
+     * @param {Number} x - X position
+     * @param {Number} y - Y position
+     * @param {Number} width - Width
+     * @param {Number} height - Height
+     * @param {Number} opacity - Opacity (0.0 to 1.0)
+     * @param {Boolean} drawCentered - Whether to center the image at the specified coordinates
+     * @private
+     */
+    _drawImagePlaceholder(imagePath, x, y, width, height, opacity, drawCentered := 0) {
+        ; Use default dimensions if not specified
+        if (width = 0) width := 200
+        if (height = 0) height := 150
+        
+        ; Adjust position if centered
+        if (drawCentered) {
+            x := x - width/2
+            y := y - height/2
+        }
+        
+        ; Draw a rectangle as a placeholder for the image
+        if (opacity < 1.0) {
+            ; For transparent images, use the specified opacity
+            alphaColor := Floor(opacity * 255) << 24 | 0xFFFFFF  ; Create color with specified alpha
+            this.fillRectangle(x, y, width, height, alphaColor)
+        } else {
+            ; For opaque images, use a solid color
+            this.fillRectangle(x, y, width, height, 0xFFFFFFFF)
+        }
+        
+        ; Draw a border around the image for visual reference
+        this.drawRectangle(x, y, width, height, 0xFF000000, 1)
+        
+        ; Draw text indicating this is an image
+        imageText := "Image: " SubStr(imagePath, InStr(imagePath, "\", false, -1) + 1)
+        this.drawText(imageText, x + 5, y + 5, 12, 0xFF000000)
+        
+        ; Draw size information
+        sizeText := width "x" height
+        this.drawText(sizeText, x + 5, y + 25, 12, 0xFF000000)
+        
+        ; Draw error message
+        this.drawText("Failed to load image", x + 5, y + 45, 12, 0xFFFF0000)
     }
     ; Font cache
     _fonts := Map()
@@ -1078,6 +1369,120 @@ class D2D1Rectangle extends D2D1Shape {
 }
 
 /**
+ * Outline Rectangle shape
+ */
+class D2D1OutlineRectangle extends D2D1Shape {
+    _width := 0
+    _height := 0
+    _thickness := 1
+    _rounded := 0
+    
+    /**
+     * Constructor
+     * @param {Number} x - X coordinate
+     * @param {Number} y - Y coordinate
+     * @param {Number} width - Width
+     * @param {Number} height - Height
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded caps
+     */
+    __New(x, y, width, height, color := 0xFFFFFFFF, thickness := 1, rounded := 0) {
+        super.__New(x, y, color)
+        this._width := width
+        this._height := height
+        this._thickness := thickness
+        this._rounded := rounded
+    }
+    
+    /**
+     * Draw the rectangle outline
+     * @param {D2D1} d2d - D2D1 instance
+     */
+    draw(d2d) {
+        d2d.drawRectangle(this._x, this._y, this._width, this._height, this._color, this._thickness, this._rounded)
+    }
+}
+
+/**
+ * Rounded Rectangle shape
+ */
+class D2D1RoundedRectangle extends D2D1Shape {
+    _width := 0
+    _height := 0
+    _radiusX := 0
+    _radiusY := 0
+    
+    /**
+     * Constructor
+     * @param {Number} x - X coordinate
+     * @param {Number} y - Y coordinate
+     * @param {Number} width - Width
+     * @param {Number} height - Height
+     * @param {Number} radiusX - X radius of the rounded corners
+     * @param {Number} radiusY - Y radius of the rounded corners
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     */
+    __New(x, y, width, height, radiusX, radiusY, color := 0xFFFFFFFF) {
+        super.__New(x, y, color)
+        this._width := width
+        this._height := height
+        this._radiusX := radiusX
+        this._radiusY := radiusY
+    }
+    
+    /**
+     * Draw the rounded rectangle
+     * @param {D2D1} d2d - D2D1 instance
+     */
+    draw(d2d) {
+        d2d.fillRoundedRectangle(this._x, this._y, this._width, this._height, this._radiusX, this._radiusY, this._color)
+    }
+}
+
+/**
+ * Outline Rounded Rectangle shape
+ */
+class D2D1OutlineRoundedRectangle extends D2D1Shape {
+    _width := 0
+    _height := 0
+    _radiusX := 0
+    _radiusY := 0
+    _thickness := 1
+    _rounded := 0
+    
+    /**
+     * Constructor
+     * @param {Number} x - X coordinate
+     * @param {Number} y - Y coordinate
+     * @param {Number} width - Width
+     * @param {Number} height - Height
+     * @param {Number} radiusX - X radius of the rounded corners
+     * @param {Number} radiusY - Y radius of the rounded corners
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded caps
+     */
+    __New(x, y, width, height, radiusX, radiusY, color := 0xFFFFFFFF, thickness := 1, rounded := 0) {
+        super.__New(x, y, color)
+        this._width := width
+        this._height := height
+        this._radiusX := radiusX
+        this._radiusY := radiusY
+        this._thickness := thickness
+        this._rounded := rounded
+    }
+    
+    /**
+     * Draw the rounded rectangle outline
+     * @param {D2D1} d2d - D2D1 instance
+     */
+    draw(d2d) {
+        d2d.drawRoundedRectangle(this._x, this._y, this._width, this._height, this._radiusX, this._radiusY, this._color, this._thickness, this._rounded)
+    }
+}
+
+/**
  * Circle shape
  */
 class D2D1Circle extends D2D1Shape {
@@ -1101,6 +1506,39 @@ class D2D1Circle extends D2D1Shape {
      */
     draw(d2d) {
         d2d.fillCircle(this._x, this._y, this._radius, this._color)
+    }
+}
+
+/**
+ * Outline Circle shape
+ */
+class D2D1OutlineCircle extends D2D1Shape {
+    _radius := 0
+    _thickness := 1
+    _rounded := 0
+    
+    /**
+     * Constructor
+     * @param {Number} x - Center X coordinate
+     * @param {Number} y - Center Y coordinate
+     * @param {Number} radius - Radius
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded caps
+     */
+    __New(x, y, radius, color := 0xFFFFFFFF, thickness := 1, rounded := 0) {
+        super.__New(x, y, color)
+        this._radius := radius
+        this._thickness := thickness
+        this._rounded := rounded
+    }
+    
+    /**
+     * Draw the circle outline
+     * @param {D2D1} d2d - D2D1 instance
+     */
+    draw(d2d) {
+        d2d.drawCircle(this._x, this._y, this._radius, this._color, this._thickness, this._rounded)
     }
 }
 
@@ -1168,6 +1606,43 @@ class D2D1Polygon extends D2D1Shape {
      */
     draw(d2d) {
         d2d.fillPolygon(this._points, this._color, this._xOffset, this._yOffset)
+    }
+}
+
+/**
+ * Outline Polygon shape
+ */
+class D2D1OutlinePolygon extends D2D1Shape {
+    _points := []
+    _thickness := 1
+    _rounded := 0
+    _xOffset := 0
+    _yOffset := 0
+    
+    /**
+     * Constructor
+     * @param {Array} points - Array of 2D points, e.g. [[0,0],[5,0],[0,5]]
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} thickness - Line thickness
+     * @param {Boolean} rounded - Whether to use rounded corners
+     * @param {Number} xOffset - X offset
+     * @param {Number} yOffset - Y offset
+     */
+    __New(points, color := 0xFFFFFFFF, thickness := 1, rounded := 0, xOffset := 0, yOffset := 0) {
+        super.__New(0, 0, color)
+        this._points := points
+        this._thickness := thickness
+        this._rounded := rounded
+        this._xOffset := xOffset
+        this._yOffset := yOffset
+    }
+    
+    /**
+     * Draw the polygon outline
+     * @param {D2D1} d2d - D2D1 instance
+     */
+    draw(d2d) {
+        d2d.drawPolygon(this._points, this._color, this._thickness, this._rounded, this._xOffset, this._yOffset)
     }
 }
 

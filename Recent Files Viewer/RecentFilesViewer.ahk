@@ -28,9 +28,9 @@
 ; Dependencies:   - Windows COM objects for accessing Recent Items
 ;                 - AutoHotkey v2
 ;
-; Author:         Unknown
+; Author:         CasperHarkin
 ; Version:        1.0
-; Last Updated:   Unknown
+; Last Updated:   08/03/2025
 ;==================================================================================================================
 
 
@@ -39,7 +39,7 @@ RecentFilesViewer()
 class RecentFilesViewer {
     ; Configuration properties
     MaxFilesToShow := 20
-    WindowTitle := "Recent Files and Stuff"
+    WindowTitle := "Recent Files"
     ListWidth := 700
     ListHeight := 400
     FontSize := 10

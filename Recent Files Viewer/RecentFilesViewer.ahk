@@ -1,7 +1,37 @@
-#Requires AutoHotkey v2 
+#Requires AutoHotkey v2
 #SingleInstance Force
 #ErrorStdOut
 
+;==================================================================================================================
+; RecentFilesViewer
+;==================================================================================================================
+; Description:    A utility class that displays and manages a GUI for accessing recently used files in Windows.
+;                 Provides functionality to view, open, and manage recent files with various operations.
+;
+; Features:       - Retrieves recent files from Windows' Recent Items folder
+;                 - Displays files in a customizable ListView interface
+;                 - Supports file operations: open file, open containing folder
+;                 - Copy file/folder paths to clipboard
+;                 - Context menu for additional operations
+;                 - Translucent GUI with keyboard navigation
+;                 - Toggle visibility with hotkey (default: q)
+;
+; Usage:          Simply instantiate the class to activate:
+;                 RecentFilesViewer()
+;
+; Hotkeys:        q - Toggle the Recent Files Viewer GUI
+;                 Shift+Click - Copy folder path to clipboard
+;                 Double-click - Open selected file
+;                 Right-click - Show context menu
+;                 Escape - Close the GUI
+;
+; Dependencies:   - Windows COM objects for accessing Recent Items
+;                 - AutoHotkey v2
+;
+; Author:         Unknown
+; Version:        1.0
+; Last Updated:   Unknown
+;==================================================================================================================
 
 
 RecentFilesViewer()
@@ -9,7 +39,7 @@ RecentFilesViewer()
 class RecentFilesViewer {
     ; Configuration properties
     MaxFilesToShow := 20
-    WindowTitle := "Recent Files"
+    WindowTitle := "Recent Files and Stuff"
     ListWidth := 700
     ListHeight := 400
     FontSize := 10

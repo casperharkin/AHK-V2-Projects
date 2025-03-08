@@ -13,6 +13,8 @@ This library provides an object-oriented interface to Direct2D's capabilities, a
 - Object-oriented design with proper resource management
 - Shape classes for higher-level abstraction
 - Scene graph for managing multiple shapes
+- Text rendering with formatting options
+- Special text effects (drop shadows, outlines)
 - Comprehensive error handling
 - Optimized performance with resource caching
 
@@ -90,6 +92,7 @@ scene.draw(d2d)
   - **D2D1Circle**: Circle shape
   - **D2D1Line**: Line shape
   - **D2D1Polygon**: Polygon shape
+  - **D2D1Text**: Text shape with formatting options
 - **D2D1Scene**: Scene graph for managing multiple shapes
 
 ## Examples
@@ -99,6 +102,53 @@ The `examples` directory contains several examples demonstrating different aspec
 - **basic.ahk**: Basic usage of the D2D1 class
 - **animation.ahk**: Animation example
 - **shapes.ahk**: Demonstration of shape classes and scene graph
+- **simple_text.ahk**: Basic text rendering capabilities
+- **text.ahk**: Advanced text rendering with formatting and effects
+
+## Text Rendering
+
+The library provides comprehensive text rendering capabilities:
+
+### Basic Text Rendering
+```autohotkey
+; Draw text with specified font, size, and color
+d2d.drawText("Hello, World!", 50, 50, 24, 0x000000, "Arial")
+```
+
+### Text Alignment
+```autohotkey
+; Left alignment (default)
+d2d.drawText("Left aligned text", 50, 100, 18, 0x000000, "Arial", "aLeft")
+
+; Center alignment
+d2d.drawText("Center aligned text", 50, 150, 18, 0x000000, "Arial", "aCenter")
+
+; Right alignment
+d2d.drawText("Right aligned text", 50, 200, 18, 0x000000, "Arial", "aRight")
+```
+
+### Text Effects
+```autohotkey
+; Text with drop shadow (color, x-offset, y-offset)
+d2d.drawText("Text with drop shadow", 50, 250, 24, 0x000000, "Arial", "ds808080 dsx2 dsy2")
+
+; Text with outline
+d2d.drawText("Text with outline", 50, 300, 24, 0xFF0000, "Arial", "olFF0000")
+```
+
+### Using the D2D1Text Class
+```autohotkey
+; Create a text object
+titleText := D2D1Text("Direct2D Text", 50, 50, 700, 50, 0x0000FF, "Arial", "center")
+titleText.setFontSize(24)
+
+; Add effects
+titleText.addDropShadow(0x80000000, 2, 2)  ; Add drop shadow
+titleText.addOutline(0xFF000000)           ; Add outline
+
+; Add to scene
+scene.addShape(titleText)
+```
 
 ## Color Format
 

@@ -62,6 +62,7 @@ class D2D1 {
     _gdiplusToken := 0
     _drawing := 0
     _resourceManager := 0
+    _textFormats := Map()
     
     ; Public properties
     width := 800
@@ -94,6 +95,8 @@ class D2D1 {
     _nrSize := 0
     _setBrush := 0
     _createStroke := 0
+    _createTextFormat := 0
+    _createTextLayout := 0
     
     ; Constants
     static DEFAULT_DPI := 96
@@ -302,6 +305,7 @@ class D2D1 {
         pOut := 0
         this._createGuid("{b859ee5a-d838-4b5b-a2e8-1adc7d93db48}", &clsidwFactory)
         
+        ; Create DirectWrite factory (0 = DWRITE_FACTORY_TYPE_SHARED)
         if (DllCall("dwrite\DWriteCreateFactory", "uint", 0, "Ptr", clsidwFactory, "Ptr*", &pOut) != 0) {
             throw Error("Failed to create DirectWrite factory. Error: " DllCall("GetLastError", "uint"), -1)
         }
@@ -330,6 +334,7 @@ class D2D1 {
         this._drawLine := this._vTable(this._renderTarget, 15)
         this._nrSize := this._vTable(this._renderTarget, 58)
         this._setBrush := this._vTable(this._brush, 8)
+        this._createTextFormat := this._vTable(this._wFactory, 15)
     }
     
     /**
@@ -481,20 +486,20 @@ class D2D1 {
                     DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
                     DllCall(this._vTable(sink, 9), "ptr", sink)
                 } else {
-                    DllCall(this._vTable(sink, 5), "ptr", sink, 
-                            "float", points[1][1] + xOffset, 
+                    DllCall(this._vTable(sink, 5), "ptr", sink,
+                            "float", points[1][1] + xOffset,
                             "float", points[1][2] + yOffset, "uint", 0)
                     
                     loop points.Length - 1
-                        DllCall(this._vTable(sink, 10), "ptr", sink, 
-                                "float", points[A_Index + 1][1] + xOffset, 
+                        DllCall(this._vTable(sink, 10), "ptr", sink,
+                                "float", points[A_Index + 1][1] + xOffset,
                                 "float", points[A_Index + 1][2] + yOffset)
                     
                     DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
                     DllCall(this._vTable(sink, 9), "ptr", sink)
                 }
                 
-                if (DllCall(this._vTable(this._renderTarget, 23), "Ptr", this._renderTarget, 
+                if (DllCall(this._vTable(this._renderTarget, 23), "Ptr", this._renderTarget,
                             "Ptr", pGeom, "ptr", this._brush, "ptr", 0) = 0) {
                     DllCall(this._vTable(sink, 2), "ptr", sink)
                     DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
@@ -507,6 +512,191 @@ class D2D1 {
         }
         
         return 0
+    }
+    ; Font cache
+    _fonts := Map()
+    
+    /**
+     * Cache a font for reuse
+     * @param {String} fontName - Font family name
+     * @param {Number} fontSize - Font size
+     * @returns {Pointer} Text format pointer
+     * @private
+     */
+    _cacheFont(fontName, fontSize) {
+        ; Create text format
+        pTextFormat := 0
+        
+        ; Create text format using the factory's CreateTextFormat method
+        if (DllCall(this._vTable(this._wFactory, 15), "Ptr", this._wFactory,
+                    "WStr", fontName, "Ptr", 0, "uint", 400, "uint", 0,
+                    "uint", 5, "float", fontSize, "WStr", "en-us", "Ptr*", &pTextFormat) != 0) {
+            throw Error("Failed to create text format. Error: " DllCall("GetLastError", "uint"), -1)
+        }
+        
+        ; Store the font in the cache
+        this._fonts[fontName fontSize] := pTextFormat
+        this._resourceManager.addResource("Font_" fontName fontSize, pTextFormat, this._vTable(pTextFormat, 2))
+        
+        return pTextFormat
+    }
+    
+    /**
+     * Create a text format (font)
+     * @param {String} fontFamily - Font family name (e.g., "Arial")
+     * @param {Number} fontSize - Font size in points
+     * @param {String} fontWeight - Font weight ("normal", "bold", "light", "black", etc.)
+     * @param {String} fontStyle - Font style ("normal", "italic", "oblique")
+     * @param {String} formatName - Name to reference this format later (optional)
+     * @returns {Pointer} Text format pointer
+     */
+    createTextFormat(fontFamily, fontSize, fontWeight := "normal", fontStyle := "normal", formatName := "") {
+        ; Convert font weight string to numeric value
+        weightMap := Map(
+            "thin", 100,
+            "extralight", 200,
+            "light", 300,
+            "normal", 400,
+            "regular", 400,
+            "medium", 500,
+            "semibold", 600,
+            "bold", 700,
+            "extrabold", 800,
+            "black", 900
+        )
+        
+        weight := weightMap.Has(fontWeight) ? weightMap[fontWeight] : 400
+        
+        ; Convert font style string to numeric value
+        styleMap := Map(
+            "normal", 0,  ; DWRITE_FONT_STYLE_NORMAL
+            "italic", 2,  ; DWRITE_FONT_STYLE_ITALIC
+            "oblique", 1  ; DWRITE_FONT_STYLE_OBLIQUE
+        )
+        
+        style := styleMap.Has(fontStyle) ? styleMap[fontStyle] : 0
+        
+        ; Create text format
+        pTextFormat := 0
+        
+        ; Create text format using the factory's CreateTextFormat method
+        if (DllCall(this._vTable(this._wFactory, 15), "Ptr", this._wFactory,
+                    "WStr", fontFamily, "Ptr", 0, "uint", weight, "uint", style,
+                    "uint", 5, "float", fontSize, "WStr", "en-us", "Ptr*", &pTextFormat) != 0) {
+            throw Error("Failed to create text format. Error: " DllCall("GetLastError", "uint"), -1)
+        }
+        
+        ; Store the text format if a name is provided
+        if (formatName != "") {
+            this._textFormats[formatName] := pTextFormat
+            this._resourceManager.addResource("TextFormat_" formatName, pTextFormat, this._vTable(pTextFormat, 2))
+        }
+        
+        return pTextFormat
+    }
+    
+    ; These methods are no longer needed as the functionality is integrated into drawText
+    
+    ; GDI+ objects for text rendering
+    _gdipBrush := 0
+    _gdipFont := Map()
+    _gdipStringFormat := 0
+    
+    /**
+     * Draw text on the canvas with advanced options
+     * @param {String} text - Text to draw
+     * @param {Number} x - X position
+     * @param {Number} y - Y position
+     * @param {Number} size - Font size
+     * @param {Integer} color - Text color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {String} fontName - Font family name
+     * @param {String} extraOptions - Additional options for text rendering
+     *                              w[number] - Width
+     *                              h[number] - Height
+     *                              a[Left/Right/Center] - Alignment
+     *                              ds[hex color] - Drop shadow color
+     *                              dsx[number] - Drop shadow X offset
+     *                              dsy[number] - Drop shadow Y offset
+     *                              ol[hex color] - Outline color
+     */
+    drawText(text, x, y, size := 18, color := 0xFFFFFFFF, fontName := "Arial", extraOptions := "") {
+        local w, h, ds, dsx, dsy, ol
+        
+        ; Parse width and height from options or use defaults
+        w := (RegExMatch(extraOptions, "w([\d\.]+)", &w) ? w[1] : this.width)
+        h := (RegExMatch(extraOptions, "h([\d\.]+)", &h) ? h[1] : this.height)
+        
+        ; Set brush color for text
+        this._setBrushColor(color)
+        
+        ; Get or create text format for the specified font and size
+        textFormat := this._fonts.Has(fontName size) ? this._fonts[fontName size] : this._cacheFont(fontName, size)
+        
+        ; Set text alignment based on options
+        if (InStr(extraOptions, "aRight"))
+            DllCall(this._vTable(textFormat, 3), "ptr", textFormat, "uint", 1)  ; DWRITE_TEXT_ALIGNMENT_TRAILING
+        else if (InStr(extraOptions, "aCenter"))
+            DllCall(this._vTable(textFormat, 3), "ptr", textFormat, "uint", 2)  ; DWRITE_TEXT_ALIGNMENT_CENTER
+        else
+            DllCall(this._vTable(textFormat, 3), "ptr", textFormat, "uint", 0)  ; DWRITE_TEXT_ALIGNMENT_LEADING
+        
+        ; Create layout rectangle
+        bf := Buffer(16)
+        NumPut("float", x, bf, 0)
+        NumPut("float", y, bf, 4)
+        NumPut("float", x + w, bf, 8)
+        NumPut("float", y + h, bf, 12)
+        
+        ; Handle special effects
+        if (RegExMatch(extraOptions, "ds([a-fA-F\d]+)", &ds)) {
+            ; Draw drop shadow
+            dsx := (RegExMatch(extraOptions, "dsx([\d\.]+)", &dsx) ? dsx[1] : 1)
+            dsy := (RegExMatch(extraOptions, "dsy([\d\.]+)", &dsy) ? dsy[1] : 1)
+            
+            ; Draw shadow text
+            this._setBrushColor("0x" ds[1])
+            shadowBf := Buffer(16)
+            NumPut("float", x + dsx, shadowBf, 0)
+            NumPut("float", y + dsy, shadowBf, 4)
+            NumPut("float", x + w + dsx, shadowBf, 8)
+            NumPut("float", y + h + dsy, shadowBf, 12)
+            
+            DllCall(this._drawText, "Ptr", this._renderTarget,
+                    "WStr", text, "uint", StrLen(text),
+                    "Ptr", textFormat, "Ptr", shadowBf,
+                    "Ptr", this._brush, "uint", 0, "uint", 0)
+            
+            ; Reset color for main text
+            this._setBrushColor(color)
+        } else if (RegExMatch(extraOptions, "ol([a-fA-F\d]+)", &ol)) {
+            ; Draw outline
+            this._setBrushColor("0x" ol[1])
+            
+            ; Draw text at multiple offsets to create outline effect
+            offsets := [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            
+            for offset in offsets {
+                outlineBf := Buffer(16)
+                NumPut("float", x + offset[1], outlineBf, 0)
+                NumPut("float", y + offset[2], outlineBf, 4)
+                NumPut("float", x + w + offset[1], outlineBf, 8)
+                NumPut("float", y + h + offset[2], outlineBf, 12)
+                
+                DllCall(this._drawText, "Ptr", this._renderTarget,
+                        "WStr", text, "uint", StrLen(text),
+                        "Ptr", textFormat, "Ptr", outlineBf,
+                        "Ptr", this._brush, "uint", 0, "uint", 0)
+            }
+            
+            ; Reset color for main text
+            this._setBrushColor(color)
+        }
+        
+        ; Draw main text
+        DllCall(this._drawText, "Ptr", this._renderTarget,
+                "WStr", text, "uint", StrLen(text),
+                "Ptr", textFormat, "Ptr", bf,
+                "Ptr", this._brush, "uint", 0, "uint", 0)
     }
     
     /**
@@ -978,6 +1168,128 @@ class D2D1Polygon extends D2D1Shape {
      */
     draw(d2d) {
         d2d.fillPolygon(this._points, this._color, this._xOffset, this._yOffset)
+    }
+}
+
+/**
+ * Text shape
+ */
+class D2D1Text extends D2D1Shape {
+    _text := ""
+    _width := 0
+    _height := 0
+    _fontSize := 18
+    _fontName := "Arial"
+    _extraOptions := ""
+    
+    /**
+     * Constructor
+     * @param {String} text - Text content
+     * @param {Number} x - X position
+     * @param {Number} y - Y position
+     * @param {Number} width - Width of text block
+     * @param {Number} height - Height of text block
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {String} fontName - Font name
+     * @param {String} alignment - Text alignment ("left", "center", "right")
+     * @param {String} extraOptions - Additional options for text rendering
+     */
+    __New(text, x, y, width, height, color := 0xFF000000, fontName := "Arial",
+          alignment := "left", extraOptions := "") {
+        super.__New(x, y, color)
+        this._text := text
+        this._width := width
+        this._height := height
+        this._fontName := fontName
+        
+        ; Build extra options string
+        this._extraOptions := "w" width " h" height
+        
+        ; Add alignment
+        if (alignment = "center")
+            this._extraOptions .= " aCenter"
+        else if (alignment = "right")
+            this._extraOptions .= " aRight"
+            
+        ; Add any additional options
+        if (extraOptions)
+            this._extraOptions .= " " extraOptions
+    }
+    
+    /**
+     * Draw the text
+     * @param {D2D1} d2d - D2D1 instance
+     */
+    draw(d2d) {
+        d2d.drawText(this._text, this._x, this._y, this._fontSize, this._color,
+                    this._fontName, this._extraOptions)
+    }
+    
+    /**
+     * Set the text content
+     * @param {String} text - New text content
+     */
+    setText(text) {
+        this._text := text
+    }
+    
+    /**
+     * Set the font size
+     * @param {Number} size - Font size
+     */
+    setFontSize(size) {
+        this._fontSize := size
+    }
+    
+    /**
+     * Set the font name
+     * @param {String} fontName - Font name
+     */
+    setFontName(fontName) {
+        this._fontName := fontName
+    }
+    
+    /**
+     * Set the text alignment
+     * @param {String} alignment - Text alignment ("left", "center", "right")
+     */
+    setAlignment(alignment) {
+        ; Remove existing alignment options
+        this._extraOptions := RegExReplace(this._extraOptions, "a(Left|Right|Center)", "")
+        
+        ; Add new alignment
+        if (alignment = "center")
+            this._extraOptions .= " aCenter"
+        else if (alignment = "right")
+            this._extraOptions .= " aRight"
+    }
+    
+    /**
+     * Add drop shadow effect
+     * @param {Integer} color - Shadow color in 0xAARRGGBB or 0xRRGGBB format
+     * @param {Number} xOffset - X offset
+     * @param {Number} yOffset - Y offset
+     */
+    addDropShadow(color, xOffset := 1, yOffset := 1) {
+        ; Remove existing shadow options
+        this._extraOptions := RegExReplace(this._extraOptions, "ds[a-fA-F\d]+ dsx[\d\.]+ dsy[\d\.]+", "")
+        
+        ; Add new shadow options
+        colorHex := Format("{:X}", color)
+        this._extraOptions .= " ds" colorHex " dsx" xOffset " dsy" yOffset
+    }
+    
+    /**
+     * Add outline effect
+     * @param {Integer} color - Outline color in 0xAARRGGBB or 0xRRGGBB format
+     */
+    addOutline(color) {
+        ; Remove existing outline options
+        this._extraOptions := RegExReplace(this._extraOptions, "ol[a-fA-F\d]+", "")
+        
+        ; Add new outline options
+        colorHex := Format("{:X}", color)
+        this._extraOptions .= " ol" colorHex
     }
 }
 

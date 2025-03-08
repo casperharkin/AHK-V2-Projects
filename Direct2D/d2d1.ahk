@@ -63,7 +63,6 @@ class D2D1 {
     _drawing := 0
     _resourceManager := 0
     _textFormats := Map()
-    _interpolationMode := 1  ; Default to high quality (linear) interpolation
     
     ; Public properties
     width := 800
@@ -71,6 +70,7 @@ class D2D1 {
     hwnd := 0
     x := 0
     y := 0
+    vsync := true  ; VSync enabled by default
     
     ; Buffer properties
     _rect1Ptr := 0
@@ -83,7 +83,6 @@ class D2D1 {
     _drawText := 0
     _beginDraw := 0
     _clear := 0
-    _drawImage := 0
     _endDraw := 0
     _rMatrix := 0
     _drawEllipse := 0
@@ -110,9 +109,10 @@ class D2D1 {
      * @param {Integer} y - Y position
      * @param {Integer} width - Width
      * @param {Integer} height - Height
+     * @param {Boolean} vsync - Whether to enable VSync (default: true)
      * @returns {D2D1} - D2D1 instance
      */
-    __New(hwnd, x := 100, y := 100, width := 800, height := 600) {
+    __New(hwnd, x := 100, y := 100, width := 800, height := 600, vsync := true) {
         ; Initialize resource manager
         this._resourceManager := D2D1ResourceManager()
         
@@ -121,6 +121,7 @@ class D2D1 {
         this.width := width
         this.height := height
         this.hwnd := hwnd
+        this.vsync := vsync
         
         ; Load required DLLs
         this._loadRequiredLibraries()
@@ -260,8 +261,13 @@ class D2D1 {
             D2D1_RENDER_TARGET_USAGE := 0, D2D1_FEATURE_LEVEL := 0
         )
         
+        ; Set present options based on VSync setting
+        ; D2D1_PRESENT_OPTIONS_NONE = 0 (VSync enabled)
+        ; D2D1_PRESENT_OPTIONS_IMMEDIATELY = 2 (VSync disabled)
+        presentOptions := this.vsync ? 0 : 2
+        
         D2D1_HWND_RENDER_TARGET_PROPERTIES := D2D1Structs.D2D1_HWND_RENDER_TARGET_PROPERTIES(
-            this.hwnd, this.width, this.height
+            this.hwnd, this.width, this.height, presentOptions
         )
         
         pOut := 0
@@ -323,7 +329,6 @@ class D2D1 {
         this._drawText := this._vTable(this._renderTarget, 27)
         this._beginDraw := this._vTable(this._renderTarget, 48)
         this._clear := this._vTable(this._renderTarget, 47)
-        this._drawImage := this._vTable(this._renderTarget, 26)
         this._endDraw := this._vTable(this._renderTarget, 49)
         this._rMatrix := this._vTable(this._renderTarget, 30)
         this._drawEllipse := this._vTable(this._renderTarget, 20)
@@ -371,19 +376,55 @@ class D2D1 {
     }
     
     /**
-     * Set interpolation mode for image scaling
-     * @param {Integer} mode - Interpolation mode:
-     *                        0 = D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR (Low quality)
-     *                        1 = D2D1_BITMAP_INTERPOLATION_MODE_LINEAR (High quality)
+     * Enable or disable VSync
+     * @param {Boolean} enable - Whether to enable VSync
+     * @returns {Boolean} True if successful, false otherwise
      */
-    setInterpolationMode(mode := 1) {
-        ; Validate mode
-        if (mode != 0 && mode != 1) {
-            throw Error("Invalid interpolation mode. Use 0 for nearest neighbor or 1 for linear.", -1)
+    setVSync(enable := true) {
+        ; If the setting hasn't changed, do nothing
+        if (this.vsync = enable)
+            return true
+            
+        ; Update the VSync setting
+        this.vsync := enable
+        
+        ; Check if we can modify the existing render target's properties
+        ; Unfortunately, Direct2D doesn't allow changing present options after creation
+        ; We need to recreate the render target with the new VSync setting
+        
+        ; Store current state to restore after recreation
+        local currentAntialias := DllCall(this._vTable(this._renderTarget, 33), "Ptr", this._renderTarget, "Uint*", &antialiasMode := 0) == 0 ? antialiasMode : 0
+        
+        ; First, release the existing render target
+        if (this._renderTarget) {
+            ; End any ongoing drawing
+            if (this._drawing) {
+                this.endDraw()
+                this._drawing := 0
+            }
+            
+            ; Release the render target
+            this._resourceManager.releaseResource("RenderTarget")
+            this._renderTarget := 0
+            
+            ; Also release the brush since it's tied to the render target
+            this._resourceManager.releaseResource("Brush")
+            this._brush := 0
         }
         
-        ; Store the interpolation mode for later use when drawing images
-        this._interpolationMode := mode
+        ; Recreate the render target
+        this._createRenderTarget()
+        
+        ; Recreate the brush
+        this._createBrush()
+        
+        ; Reinitialize function pointers
+        this._initFunctionPointers()
+        
+        ; Restore previous antialiasing setting
+        this.setAntialias(currentAntialias == 0)
+        
+        return true
     }
     
     /**
@@ -392,8 +433,9 @@ class D2D1 {
      */
     beginDraw() {
         local pOut := 0, GetWindowRectResult := this.hwnd
+        local rectBuffer := Buffer(16, 0)  ; Proper RECT structure (left, top, right, bottom)
         
-        if (!DllCall("GetWindowRect", "Uptr", GetWindowRectResult, "ptr", this._D2D1_STROKE_STYLE_PROPERTIES)) {
+        if (!DllCall("GetWindowRect", "Uptr", GetWindowRectResult, "ptr", rectBuffer)) {
             if (this._drawing) {
                 this.clear()
                 this._drawing := 0
@@ -638,52 +680,90 @@ class D2D1 {
         
         pGeom := sink := 0
         
-        if (DllCall(this._vTable(this._factory, 10), "Ptr", this._factory, "Ptr*", &pGeom) = 0) {
-            if (DllCall(this._vTable(pGeom, 17), "Ptr", pGeom, "Ptr*", &sink) = 0) {
-                this._setBrushColor(color)
-                
-                if (this._is64Bit) {
-                    bf := Buffer(64)
-                    NumPut("float", points[1][1] + xOffset, bf, 0)
-                    NumPut("float", points[1][2] + yOffset, bf, 4)
-                    DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 1)
-                    
-                    loop points.Length - 1 {
-                        NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
-                        NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
-                        DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double"))
-                    }
-                    
-                    DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
-                    DllCall(this._vTable(sink, 9), "ptr", sink)
-                } else {
-                    DllCall(this._vTable(sink, 5), "ptr", sink,
-                            "float", points[1][1] + xOffset,
-                            "float", points[1][2] + yOffset, "uint", 1)
-                    
-                    loop points.Length - 1
-                        DllCall(this._vTable(sink, 10), "ptr", sink,
-                                "float", points[A_Index + 1][1] + xOffset,
-                                "float", points[A_Index + 1][2] + yOffset)
-                    
-                    DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
-                    DllCall(this._vTable(sink, 9), "ptr", sink)
-                }
-                
-                if (DllCall(this._vTable(this._renderTarget, 22), "Ptr", this._renderTarget,
-                            "Ptr", pGeom, "ptr", this._brush, "float", thickness,
-                            "ptr", (rounded ? this._strokeRounded : this._stroke)) = 0) {
-                    DllCall(this._vTable(sink, 2), "ptr", sink)
-                    DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
-                    return 1
-                }
-                
-                DllCall(this._vTable(sink, 2), "ptr", sink)
-                DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
-            }
+        ; Create path geometry
+        if (DllCall(this._vTable(this._factory, 10), "Ptr", this._factory, "Ptr*", &pGeom) != 0) {
+            throw Error("Failed to create path geometry. Error: " DllCall("GetLastError", "uint"), -1)
         }
         
-        return 0
+        ; Open geometry sink
+        if (DllCall(this._vTable(pGeom, 17), "Ptr", pGeom, "Ptr*", &sink) != 0) {
+            DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)  ; Release geometry
+            throw Error("Failed to open geometry sink. Error: " DllCall("GetLastError", "uint"), -1)
+        }
+        
+        ; Set brush color
+        this._setBrushColor(color)
+        
+        try {
+            ; Begin figure
+            if (this._is64Bit) {
+                bf := Buffer(64)
+                NumPut("float", points[1][1] + xOffset, bf, 0)
+                NumPut("float", points[1][2] + yOffset, bf, 4)
+                if (DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 1) != 0) {
+                    throw Error("Failed to begin figure. Error: " DllCall("GetLastError", "uint"), -1)
+                }
+                
+                ; Add lines
+                loop points.Length - 1 {
+                    NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
+                    NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
+                    if (DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double")) != 0) {
+                        throw Error("Failed to add line. Error: " DllCall("GetLastError", "uint"), -1)
+                    }
+                }
+            } else {
+                ; Begin figure
+                if (DllCall(this._vTable(sink, 5), "ptr", sink,
+                        "float", points[1][1] + xOffset,
+                        "float", points[1][2] + yOffset, "uint", 1) != 0) {
+                    throw Error("Failed to begin figure. Error: " DllCall("GetLastError", "uint"), -1)
+                }
+                
+                ; Add lines
+                loop points.Length - 1 {
+                    if (DllCall(this._vTable(sink, 10), "ptr", sink,
+                            "float", points[A_Index + 1][1] + xOffset,
+                            "float", points[A_Index + 1][2] + yOffset) != 0) {
+                        throw Error("Failed to add line. Error: " DllCall("GetLastError", "uint"), -1)
+                    }
+                }
+            }
+            
+            ; End figure
+            if (DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1) != 0) {
+                throw Error("Failed to end figure. Error: " DllCall("GetLastError", "uint"), -1)
+            }
+            
+            ; Close sink
+            if (DllCall(this._vTable(sink, 9), "ptr", sink) != 0) {
+                throw Error("Failed to close sink. Error: " DllCall("GetLastError", "uint"), -1)
+            }
+            
+            ; Draw geometry
+            if (DllCall(this._vTable(this._renderTarget, 22), "Ptr", this._renderTarget,
+                        "Ptr", pGeom, "ptr", this._brush, "float", thickness,
+                        "ptr", (rounded ? this._strokeRounded : this._stroke)) != 0) {
+                throw Error("Failed to draw geometry. Error: " DllCall("GetLastError", "uint"), -1)
+            }
+            
+            return 1
+        } catch as e {
+            ; Clean up resources in case of error
+            if (sink)
+                DllCall(this._vTable(sink, 2), "ptr", sink)
+            if (pGeom)
+                DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
+            throw e
+        }
+        
+        ; Clean up resources
+        if (sink)
+            DllCall(this._vTable(sink, 2), "ptr", sink)
+        if (pGeom)
+            DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
+        
+        return 1
     }
     
     /**
@@ -701,111 +781,95 @@ class D2D1 {
         
         pGeom := sink := 0
         
-        if (DllCall(this._vTable(this._factory, 10), "Ptr", this._factory, "Ptr*", &pGeom) = 0) {
-            if (DllCall(this._vTable(pGeom, 17), "Ptr", pGeom, "Ptr*", &sink) = 0) {
-                this._setBrushColor(color)
+        ; Create path geometry
+        if (DllCall(this._vTable(this._factory, 10), "Ptr", this._factory, "Ptr*", &pGeom) != 0) {
+            throw Error("Failed to create path geometry. Error: " DllCall("GetLastError", "uint"), -1)
+        }
+        
+        ; Open geometry sink
+        if (DllCall(this._vTable(pGeom, 17), "Ptr", pGeom, "Ptr*", &sink) != 0) {
+            DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)  ; Release geometry
+            throw Error("Failed to open geometry sink. Error: " DllCall("GetLastError", "uint"), -1)
+        }
+        
+        ; Set brush color
+        this._setBrushColor(color)
+        
+        try {
+            ; Begin figure
+            if (this._is64Bit) {
+                bf := Buffer(64)
+                NumPut("float", points[1][1] + xOffset, bf, 0)
+                NumPut("float", points[1][2] + yOffset, bf, 4)
+                if (DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 0) != 0) {
+                    throw Error("Failed to begin figure. Error: " DllCall("GetLastError", "uint"), -1)
+                }
                 
-                if (this._is64Bit) {
-                    bf := Buffer(64)
-                    NumPut("float", points[1][1] + xOffset, bf, 0)
-                    NumPut("float", points[1][2] + yOffset, bf, 4)
-                    DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 0)
-                    
-                    loop points.Length - 1 {
-                        NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
-                        NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
-                        DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double"))
+                ; Add lines
+                loop points.Length - 1 {
+                    NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
+                    NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
+                    if (DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double")) != 0) {
+                        throw Error("Failed to add line. Error: " DllCall("GetLastError", "uint"), -1)
                     }
-                    
-                    DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
-                    DllCall(this._vTable(sink, 9), "ptr", sink)
-                } else {
-                    DllCall(this._vTable(sink, 5), "ptr", sink,
-                            "float", points[1][1] + xOffset,
-                            "float", points[1][2] + yOffset, "uint", 0)
-                    
-                    loop points.Length - 1
-                        DllCall(this._vTable(sink, 10), "ptr", sink,
-                                "float", points[A_Index + 1][1] + xOffset,
-                                "float", points[A_Index + 1][2] + yOffset)
-                    
-                    DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1)
-                    DllCall(this._vTable(sink, 9), "ptr", sink)
+                }
+            } else {
+                ; Begin figure
+                if (DllCall(this._vTable(sink, 5), "ptr", sink,
+                        "float", points[1][1] + xOffset,
+                        "float", points[1][2] + yOffset, "uint", 0) != 0) {
+                    throw Error("Failed to begin figure. Error: " DllCall("GetLastError", "uint"), -1)
                 }
                 
-                if (DllCall(this._vTable(this._renderTarget, 23), "Ptr", this._renderTarget,
-                            "Ptr", pGeom, "ptr", this._brush, "ptr", 0) = 0) {
-                    DllCall(this._vTable(sink, 2), "ptr", sink)
-                    DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
-                    return 1
+                ; Add lines
+                loop points.Length - 1 {
+                    if (DllCall(this._vTable(sink, 10), "ptr", sink,
+                            "float", points[A_Index + 1][1] + xOffset,
+                            "float", points[A_Index + 1][2] + yOffset) != 0) {
+                        throw Error("Failed to add line. Error: " DllCall("GetLastError", "uint"), -1)
+                    }
                 }
-                
-                DllCall(this._vTable(sink, 2), "ptr", sink)
-                DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
             }
+            
+            ; End figure
+            if (DllCall(this._vTable(sink, 8), "ptr", sink, "uint", 1) != 0) {
+                throw Error("Failed to end figure. Error: " DllCall("GetLastError", "uint"), -1)
+            }
+            
+            ; Close sink
+            if (DllCall(this._vTable(sink, 9), "ptr", sink) != 0) {
+                throw Error("Failed to close sink. Error: " DllCall("GetLastError", "uint"), -1)
+            }
+            
+            ; Fill geometry
+            if (DllCall(this._vTable(this._renderTarget, 23), "Ptr", this._renderTarget,
+                        "Ptr", pGeom, "ptr", this._brush, "ptr", 0) != 0) {
+                throw Error("Failed to fill geometry. Error: " DllCall("GetLastError", "uint"), -1)
+            }
+            
+            return 1
+        } catch as e {
+            ; Clean up resources in case of error
+            if (sink)
+                DllCall(this._vTable(sink, 2), "ptr", sink)
+            if (pGeom)
+                DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
+            throw e
         }
         
-        return 0
+        ; Clean up resources
+        if (sink)
+            DllCall(this._vTable(sink, 2), "ptr", sink)
+        if (pGeom)
+            DllCall(this._vTable(pGeom, 2), "Ptr", pGeom)
+        
+        return 1
     }
     
-    
-    /**
-     * Reset the transform matrix to identity
-     * @private
-     */
-    _resetTransform() {
-        matrix := D2D1Structs.D2D1_MATRIX_3X2_F()
-        DllCall(this._rMatrix, "ptr", this._renderTarget, "ptr", matrix)
-    }
-    
-    /**
-     * Draw a placeholder for an image that failed to load
-     * @param {String} imagePath - Path to the image file
-     * @param {Number} x - X position
-     * @param {Number} y - Y position
-     * @param {Number} width - Width
-     * @param {Number} height - Height
-     * @param {Number} opacity - Opacity (0.0 to 1.0)
-     * @param {Boolean} drawCentered - Whether to center the image at the specified coordinates
-     * @private
-     */
-    _drawImagePlaceholder(imagePath, x, y, width, height, opacity, drawCentered := 0) {
-        ; Use default dimensions if not specified
-        if (width = 0) width := 200
-        if (height = 0) height := 150
-        
-        ; Adjust position if centered
-        if (drawCentered) {
-            x := x - width/2
-            y := y - height/2
-        }
-        
-        ; Draw a rectangle as a placeholder for the image
-        if (opacity < 1.0) {
-            ; For transparent images, use the specified opacity
-            alphaColor := Floor(opacity * 255) << 24 | 0xFFFFFF  ; Create color with specified alpha
-            this.fillRectangle(x, y, width, height, alphaColor)
-        } else {
-            ; For opaque images, use a solid color
-            this.fillRectangle(x, y, width, height, 0xFFFFFFFF)
-        }
-        
-        ; Draw a border around the image for visual reference
-        this.drawRectangle(x, y, width, height, 0xFF000000, 1)
-        
-        ; Draw text indicating this is an image
-        imageText := "Image: " SubStr(imagePath, InStr(imagePath, "\", false, -1) + 1)
-        this.drawText(imageText, x + 5, y + 5, 12, 0xFF000000)
-        
-        ; Draw size information
-        sizeText := width "x" height
-        this.drawText(sizeText, x + 5, y + 25, 12, 0xFF000000)
-        
-        ; Draw error message
-        this.drawText("Failed to load image", x + 5, y + 45, 12, 0xFFFF0000)
-    }
+ 
     ; Font cache
     _fonts := Map()
+    _maxFontCacheSize := 50  ; Maximum number of fonts to cache
     
     /**
      * Cache a font for reuse
@@ -823,6 +887,23 @@ class D2D1 {
                     "WStr", fontName, "Ptr", 0, "uint", 400, "uint", 0,
                     "uint", 5, "float", fontSize, "WStr", "en-us", "Ptr*", &pTextFormat) != 0) {
             throw Error("Failed to create text format. Error: " DllCall("GetLastError", "uint"), -1)
+        }
+        
+        ; Check if we need to remove old fonts from the cache
+        if (this._fonts.Count >= this._maxFontCacheSize) {
+            ; Remove the oldest font (first one in the map)
+            oldestKey := ""
+            for key in this._fonts {
+                oldestKey := key
+                break
+            }
+            
+            if (oldestKey != "") {
+                ; Release the resource
+                this._resourceManager.releaseResource("Font_" oldestKey)
+                ; Remove from cache
+                this._fonts.Delete(oldestKey)
+            }
         }
         
         ; Store the font in the cache
@@ -887,11 +968,6 @@ class D2D1 {
     }
     
     ; These methods are no longer needed as the functionality is integrated into drawText
-    
-    ; GDI+ objects for text rendering
-    _gdipBrush := 0
-    _gdipFont := Map()
-    _gdipStringFormat := 0
     
     /**
      * Draw text on the canvas with advanced options
@@ -1214,6 +1290,16 @@ class D2D1Structs {
      * @param {Integer} width - Width
      * @param {Integer} height - Height
      * @param {Integer} D2D1_PRESENT_OPTIONS - Present options
+     * @returns {Buffer} D2D1_HWND_RENDER_TARGET_PROPERTIES structure
+     */
+    /**
+     * Create a D2D1_HWND_RENDER_TARGET_PROPERTIES structure
+     * @param {Integer} hwnd - Window handle
+     * @param {Integer} width - Width
+     * @param {Integer} height - Height
+     * @param {Integer} D2D1_PRESENT_OPTIONS - Present options:
+     *                                        0 = D2D1_PRESENT_OPTIONS_NONE (VSync enabled)
+     *                                        2 = D2D1_PRESENT_OPTIONS_IMMEDIATELY (VSync disabled)
      * @returns {Buffer} D2D1_HWND_RENDER_TARGET_PROPERTIES structure
      */
     static D2D1_HWND_RENDER_TARGET_PROPERTIES(hwnd := 0, width := 0, height := 0, D2D1_PRESENT_OPTIONS := 0) {

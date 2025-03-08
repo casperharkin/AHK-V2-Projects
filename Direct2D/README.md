@@ -8,15 +8,26 @@ This library provides an object-oriented interface to Direct2D's capabilities, a
 
 ## Features
 
+### Core Features
 - Hardware-accelerated 2D rendering
-- Simple API for common drawing operations
 - Object-oriented design with proper resource management
-- Shape classes for higher-level abstraction
-- Scene graph for managing multiple shapes
-- Text rendering with formatting options
-- Special text effects (drop shadows, outlines)
 - Comprehensive error handling
 - Optimized performance with resource caching
+
+### Drawing Capabilities
+- Simple API for common drawing operations
+- Shape classes for higher-level abstraction
+- Scene graph for managing multiple shapes
+- Antialiasing settings for quality control
+
+### Text and Effects
+- Text rendering with formatting options
+- Special text effects (drop shadows, outlines)
+- Font caching for improved performance
+
+### Animation and Performance
+- VSync control for smooth animations
+- Double-buffering for flicker-free rendering
 
 ## Getting Started
 
@@ -88,10 +99,15 @@ scene.draw(d2d)
 - **D2D1ResourceManager**: Manages Direct2D resources
 - **D2D1Structs**: Structure definitions for Direct2D
 - **D2D1Shape**: Base class for all shapes
-  - **D2D1Rectangle**: Rectangle shape
-  - **D2D1Circle**: Circle shape
+  - **D2D1Rectangle**: Filled rectangle shape
+  - **D2D1OutlineRectangle**: Outlined rectangle shape
+  - **D2D1RoundedRectangle**: Filled rounded rectangle shape
+  - **D2D1OutlineRoundedRectangle**: Outlined rounded rectangle shape
+  - **D2D1Circle**: Filled circle shape
+  - **D2D1OutlineCircle**: Outlined circle shape
   - **D2D1Line**: Line shape
-  - **D2D1Polygon**: Polygon shape
+  - **D2D1Polygon**: Filled polygon shape
+  - **D2D1OutlinePolygon**: Outlined polygon shape
   - **D2D1Text**: Text shape with formatting options
 - **D2D1Scene**: Scene graph for managing multiple shapes
 
@@ -99,11 +115,35 @@ scene.draw(d2d)
 
 The `examples` directory contains several examples demonstrating different aspects of the library:
 
-- **basic.ahk**: Basic usage of the D2D1 class
-- **animation.ahk**: Animation example
-- **shapes.ahk**: Demonstration of shape classes and scene graph
-- **simple_text.ahk**: Basic text rendering capabilities
-- **text.ahk**: Advanced text rendering with formatting and effects
+- **animation_example.ahk**: Animation example with orbiting objects and trails
+- **shapes_example.ahk**: Demonstration of shape classes, scene graph, and compound shapes
+- **text_example.ahk**: Advanced text rendering with formatting, effects, and animation
+
+## Advanced Features
+
+### VSync Control
+
+```autohotkey
+; Enable VSync during initialization (default)
+d2d := D2D1(myGui.hwnd, 100, 100, 800, 600, true)
+
+; Disable VSync during initialization
+d2d := D2D1(myGui.hwnd, 100, 100, 800, 600, false)
+
+; Toggle VSync at runtime
+d2d.setVSync(true)   ; Enable VSync
+d2d.setVSync(false)  ; Disable VSync
+```
+
+### Antialiasing Control
+
+```autohotkey
+; Enable antialiasing (default)
+d2d.setAntialias(true)
+
+; Disable antialiasing
+d2d.setAntialias(false)
+```
 
 ## Text Rendering
 
@@ -159,6 +199,29 @@ Colors are specified in `0xAARRGGBB` or `0xRRGGBB` format:
 - `BB`: Blue channel (00-FF)
 
 If you provide `0xRRGGBB`, alpha will be set to `0xFF` (fully opaque).
+
+## Planned Features
+
+The following features are planned for future releases:
+
+- **Image Drawing**: Support for loading and rendering images from files
+- **Bitmap Effects**: Applying filters and transformations to images
+- **Additional Shape Types**: More complex shape types and path operations
+
+## Documentation
+
+For detailed documentation, see [d2d1_documentation.md](d2d1_documentation.md), which includes:
+
+1. Introduction and architecture overview
+2. Getting started guide
+3. Core concepts explanation
+4. Basic drawing operations
+5. Shape classes reference
+6. Text rendering guide
+7. Animation techniques
+8. Advanced features
+9. Performance optimization tips
+10. Complete API reference
 
 ## Attribution
 

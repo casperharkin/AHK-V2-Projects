@@ -17,7 +17,7 @@ if (A_ScriptName = "d2d1.ahk") {
     myGui := Gui(" +Alwaysontop +Resize", "D2D1 Example")
     
     ; Initialize D2D1 instance
-    d2d := D2D1(myGui.hwnd, x := 100, y := 100, width := 800, height := 600)
+    d2d := D2D1(myGui.hwnd, x := 700, y := 500, width := 800, height := 600)
     
     ; Set up drawing timer
     SetTimer(DrawExample.Bind(d2d), 40)
@@ -112,7 +112,7 @@ class D2D1 {
      * @param {Boolean} vsync - Whether to enable VSync (default: true)
      * @returns {D2D1} - D2D1 instance
      */
-    __New(hwnd, x := 100, y := 100, width := 800, height := 600, vsync := true) {
+    __New(hwnd, x := 0, y := 0, width := 800, height := 600, vsync := true) {
         ; Initialize resource manager
         this._resourceManager := D2D1ResourceManager()
         
@@ -133,6 +133,7 @@ class D2D1 {
         this._createFactory()
         
         ; Show the GUI window
+        ;DllCall("SetWindowPos", "Uptr", this.hwnd, "Uptr", 0, "Int", this.x, "Int", this.y, "Int", 0, "Int", 0, "UInt", 0x1)  ; 0x40 = SWP_SHOWWINDOW, 0x1 = SWP_NOSIZE
         DllCall("ShowWindow", "Uptr", this.hwnd, "uint", 1)
         
         ; Set up message handling

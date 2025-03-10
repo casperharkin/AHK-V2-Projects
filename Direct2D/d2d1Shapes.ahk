@@ -1,8 +1,29 @@
-#Requires AutoHotkey v2.0
+;==================================================================================================================
+; Direct2D Shape Classes
+;==================================================================================================================
+; Description:    Object-oriented shape classes for Direct2D rendering
+;                 Provides a hierarchy of shape classes for easy manipulation and rendering
+;
+; Features:       - Base shape class with common properties and methods
+;                 - Specialized classes for rectangles, circles, lines, polygons, and text
+;                 - Support for filled and outlined shapes
+;                 - Text rendering with alignment and effects
+;                 - Easy positioning and styling
+;
+; Usage:          rect := D2D1Rectangle(x, y, width, height, color)
+;                 d2d.beginDraw()
+;                 rect.draw(d2d)
+;                 d2d.endDraw()
+;
+; Dependencies:   - AutoHotkey v2.0+
+;                 - d2d1.ahk
+;
+; Author:         CasperHarkin
+; Version:        1.0.0
+; Last Updated:   10/03/2025
+;==================================================================================================================
 
-/**
- * Base class for all shapes
- */
+#Requires AutoHotkey v2.0
 class d2d1Shapes {
     _x := 0
     _y := 0

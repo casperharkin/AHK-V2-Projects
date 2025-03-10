@@ -1,16 +1,32 @@
+;==================================================================================================================
+; Direct2D Wrapper for AutoHotkey v2
+;==================================================================================================================
+; Description:    Object-oriented interface to the Windows Direct2D API for AHK v2
+;                 Provides hardware-accelerated 2D graphics capabilities with simple methods
+;
+; Features:       - Hardware-accelerated rendering with Direct2D
+;                 - Object-oriented design with resource management
+;                 - Support for shapes, text, and custom geometries
+;                 - VSync control for smooth animations
+;                 - Automatic resource cleanup
+;
+;
+; Dependencies:   - AutoHotkey v2.0+
+;                 - D2D1Structs.ahk
+;                 - D2D1Shapes.ahk
+;                 - Windows with Direct2D support
+;
+; Author:         CasperHarkin
+; Version:        1.0.0
+; Last Updated:   10/03/2025
+;==================================================================================================================
+
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 #Include "D2D1Structs.ahk"
 #Include "D2D1Shapes.ahk"
 
-
-/**
- * Direct2D Wrapper for AutoHotkey v2
- * Based on Spawnova's Direct2D overlay class: https://github.com/Spawnova/ShinsOverlayClass
- * 
- * This class provides an object-oriented interface to the Windows Direct2D API,
- * simplifying the creation of hardware-accelerated 2D graphics in AutoHotkey v2 applications.
- */
+; Based on Spawnova's Direct2D overlay class: https://github.com/Spawnova/ShinsOverlayClass
 
 /**
  * Example usage of the D2D1 class
@@ -20,12 +36,14 @@ if (A_ScriptName = "d2d1.ahk") {
     myGui := Gui(" +Alwaysontop +Resize", "D2D1 Example")
 
 
-    ; Initialize D2D1 instance
+    ; Initialise D2D1 instance
     d2d := D2D1(myGui.hwnd, x := 700, y := 500, width := 800, height := 600)
 
     ; Set up drawing timer
     TimerFn := DrawExample.Bind(d2d)
     SetTimer(TimerFn, 40)
+
+    ; Set up close event
     myGui.OnEvent("Close",  (*) => guiClose(d2d, TimerFn))
 
 
@@ -363,10 +381,9 @@ class D2D1 {
         this.y := y
         
         if (!this.hwnd && w != 0 && h != 0) {
-            newSize := Buffer(16, 0)
-            NumPut("uint", this.width := w, newSize, 0)
-            NumPut("uint", this.height := h, newSize, 4)
-            DllCall(this._nrSize, "Ptr", this._renderTarget, "ptr", newSize)
+            this.width := w
+            this.height := h
+            DllCall(this._nrSize, "Ptr", this._renderTarget, "ptr", D2D1Structs.D2D1_SIZE_U(w, h))
         }
         
         DllCall("MoveWindow", "Uptr", this.hwnd, "int", x, "int", y,
@@ -586,13 +603,7 @@ class D2D1 {
         this._setBrushColor(color)
         
         ; Create rounded rectangle structure
-        bf := Buffer(24)
-        NumPut("float", x, bf, 0)
-        NumPut("float", y, bf, 4)
-        NumPut("float", x+w, bf, 8)
-        NumPut("float", y+h, bf, 12)
-        NumPut("float", radiusX, bf, 16)
-        NumPut("float", radiusY, bf, 20)
+        bf := D2D1Structs.D2D1_ROUNDED_RECT(x, y, x+w, y+h, radiusX, radiusY)
         
         DllCall(this._drawRoundedRectangle, "Ptr", this._renderTarget,
                 "Ptr", bf,
@@ -623,13 +634,7 @@ class D2D1 {
         this._setBrushColor(color)
         
         ; Create rounded rectangle structure
-        bf := Buffer(24)
-        NumPut("float", x, bf, 0)
-        NumPut("float", y, bf, 4)
-        NumPut("float", x+w, bf, 8)
-        NumPut("float", y+h, bf, 12)
-        NumPut("float", radiusX, bf, 16)
-        NumPut("float", radiusY, bf, 20)
+        bf := D2D1Structs.D2D1_ROUNDED_RECT(x, y, x+w, y+h, radiusX, radiusY)
         
         DllCall(this._fillRoundedRectangle, "Ptr", this._renderTarget,
                 "Ptr", bf,
@@ -705,17 +710,14 @@ class D2D1 {
         try {
             ; Begin figure
             if (this._is64Bit) {
-                bf := Buffer(64)
-                NumPut("float", points[1][1] + xOffset, bf, 0)
-                NumPut("float", points[1][2] + yOffset, bf, 4)
+                bf := D2D1Structs.D2D1_POINT_2F_SINGLE(points[1][1] + xOffset, points[1][2] + yOffset)
                 if (DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 1) != 0) {
                     throw Error("Failed to begin figure. Error: " DllCall("GetLastError", "uint"), -1)
                 }
                 
                 ; Add lines
                 loop points.Length - 1 {
-                    NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
-                    NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
+                    bf := D2D1Structs.D2D1_POINT_2F_SINGLE(points[A_Index + 1][1] + xOffset, points[A_Index + 1][2] + yOffset)
                     if (DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double")) != 0) {
                         throw Error("Failed to add line. Error: " DllCall("GetLastError", "uint"), -1)
                     }
@@ -806,17 +808,14 @@ class D2D1 {
         try {
             ; Begin figure
             if (this._is64Bit) {
-                bf := Buffer(64)
-                NumPut("float", points[1][1] + xOffset, bf, 0)
-                NumPut("float", points[1][2] + yOffset, bf, 4)
+                bf := D2D1Structs.D2D1_POINT_2F_SINGLE(points[1][1] + xOffset, points[1][2] + yOffset)
                 if (DllCall(this._vTable(sink, 5), "ptr", sink, "double", NumGet(bf, 0, "double"), "uint", 0) != 0) {
                     throw Error("Failed to begin figure. Error: " DllCall("GetLastError", "uint"), -1)
                 }
                 
                 ; Add lines
                 loop points.Length - 1 {
-                    NumPut("float", points[A_Index + 1][1] + xOffset, bf, 0)
-                    NumPut("float", points[A_Index + 1][2] + yOffset, bf, 4)
+                    bf := D2D1Structs.D2D1_POINT_2F_SINGLE(points[A_Index + 1][1] + xOffset, points[A_Index + 1][2] + yOffset)
                     if (DllCall(this._vTable(sink, 10), "ptr", sink, "double", NumGet(bf, 0, "double")) != 0) {
                         throw Error("Failed to add line. Error: " DllCall("GetLastError", "uint"), -1)
                     }
@@ -1016,11 +1015,7 @@ class D2D1 {
             DllCall(this._vTable(textFormat, 3), "ptr", textFormat, "uint", 0)  ; DWRITE_TEXT_ALIGNMENT_LEADING
         
         ; Create layout rectangle
-        bf := Buffer(16)
-        NumPut("float", x, bf, 0)
-        NumPut("float", y, bf, 4)
-        NumPut("float", x + w, bf, 8)
-        NumPut("float", y + h, bf, 12)
+        bf := D2D1Structs.D2D_RECT_F(x, y, x + w, y + h)
         
         ; Handle special effects
         if (RegExMatch(extraOptions, "ds([a-fA-F\d]+)", &ds)) {
@@ -1030,11 +1025,7 @@ class D2D1 {
             
             ; Draw shadow text
             this._setBrushColor("0x" ds[1])
-            shadowBf := Buffer(16)
-            NumPut("float", x + dsx, shadowBf, 0)
-            NumPut("float", y + dsy, shadowBf, 4)
-            NumPut("float", x + w + dsx, shadowBf, 8)
-            NumPut("float", y + h + dsy, shadowBf, 12)
+            shadowBf := D2D1Structs.D2D_RECT_F(x + dsx, y + dsy, x + w + dsx, y + h + dsy)
             
             DllCall(this._drawText, "Ptr", this._renderTarget,
                     "WStr", text, "uint", StrLen(text),
@@ -1051,11 +1042,7 @@ class D2D1 {
             offsets := [[0, -1], [1, 0], [0, 1], [-1, 0]]
             
             for offset in offsets {
-                outlineBf := Buffer(16)
-                NumPut("float", x + offset[1], outlineBf, 0)
-                NumPut("float", y + offset[2], outlineBf, 4)
-                NumPut("float", x + w + offset[1], outlineBf, 8)
-                NumPut("float", y + h + offset[2], outlineBf, 12)
+                outlineBf := D2D1Structs.D2D_RECT_F(x + offset[1], y + offset[2], x + w + offset[1], y + h + offset[2])
                 
                 DllCall(this._drawText, "Ptr", this._renderTarget,
                         "WStr", text, "uint", StrLen(text),
@@ -1130,10 +1117,7 @@ class D2D1 {
             color += 0xFF000000
         
         if (color != lastCol) {
-            NumPut("Float", ((color & 0xFF0000) >> 16) / 255, this._colPtr, 0)
-            NumPut("Float", ((color & 0xFF00) >> 8) / 255, this._colPtr, 4)
-            NumPut("Float", ((color & 0xFF)) / 255, this._colPtr, 8)
-            NumPut("Float", (color > 0xFFFFFF ? ((color & 0xFF000000) >> 24) / 255 : 1), this._colPtr, 12)
+            this._colPtr := D2D1Structs.D2D1_COLOR_F(color)
             DllCall(this._setBrush, "Ptr", this._brush, "Ptr", this._colPtr)
             lastCol := color
             return 1

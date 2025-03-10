@@ -1,10 +1,93 @@
+;==================================================================================================================
+; Direct2D Structure Definitions
+;==================================================================================================================
+; Description:    Collection of structure definitions for Direct2D API integration
+;                 Provides buffer creation functions for various Direct2D structures
+;
+; Features:       - Memory buffer creation for Direct2D structures
+;                 - Support for common structures like rectangles, points, and matrices
+;                 - Color conversion utilities
+;                 - Proper memory alignment for 32-bit and 64-bit compatibility
+;
+; Usage:          buffer := D2D1Structs.D2D1_RECT_F(left, top, right, bottom)
+;                 colorBuffer := D2D1Structs.D2D1_COLOR_F(0xFF0000)
+;
+; Dependencies:   - AutoHotkey v2.0+
+;
+; Author:         CasperHarkin
+; Version:        1.0.0
+; Last Updated:   10/03/2025
+;==================================================================================================================
+
 #Requires AutoHotkey v2.0
-
-
-/**
- * Structure definitions for Direct2D
- */
 class D2D1Structs {
+    /**
+     * Create a D2D1_SIZE_U structure
+     * @param {Number} width - Width
+     * @param {Number} height - Height
+     * @returns {Buffer} D2D1_SIZE_U structure
+     */
+    static D2D1_SIZE_U(width := 0, height := 0) {
+        local size := Buffer(8, 0)
+        NumPut("uint", width, size, 0)
+        NumPut("uint", height, size, 4)
+        return size
+    }
+    
+    /**
+     * Create a D2D1_ROUNDED_RECT structure
+     * @param {Number} left - Left coordinate
+     * @param {Number} top - Top coordinate
+     * @param {Number} right - Right coordinate
+     * @param {Number} bottom - Bottom coordinate
+     * @param {Number} radiusX - X radius of the rounded corners
+     * @param {Number} radiusY - Y radius of the rounded corners
+     * @returns {Buffer} D2D1_ROUNDED_RECT structure
+     */
+    static D2D1_ROUNDED_RECT(left := 0, top := 0, right := 0, bottom := 0, radiusX := 0, radiusY := 0) {
+        local rect := Buffer(24, 0)
+        NumPut("float", left, rect, 0)
+        NumPut("float", top, rect, 4)
+        NumPut("float", right, rect, 8)
+        NumPut("float", bottom, rect, 12)
+        NumPut("float", radiusX, rect, 16)
+        NumPut("float", radiusY, rect, 20)
+        return rect
+    }
+    
+    /**
+     * Create a D2D1_POINT_2F structure for a single point
+     * @param {Number} x - X coordinate
+     * @param {Number} y - Y coordinate
+     * @returns {Buffer} D2D1_POINT_2F structure
+     */
+    static D2D1_POINT_2F_SINGLE(x, y) {
+        local bf := Buffer(8)
+        NumPut("float", x, bf, 0)
+        NumPut("float", y, bf, 4)
+        return bf
+    }
+    
+    /**
+     * Create a D2D1_COLOR_F structure from an ARGB color
+     * @param {Integer} color - Color in 0xAARRGGBB or 0xRRGGBB format
+     * @returns {Buffer} D2D1_COLOR_F structure
+     */
+    static D2D1_COLOR_F(color) {
+        local colorBuf := Buffer(16, 0)
+        
+        ; Ensure color has alpha channel
+        if (color <= 0xFFFFFF)
+            color += 0xFF000000
+        
+        ; Convert to 0-1 range float values
+        NumPut("Float", ((color & 0xFF0000) >> 16) / 255, colorBuf, 0)  ; R
+        NumPut("Float", ((color & 0xFF00) >> 8) / 255, colorBuf, 4)     ; G
+        NumPut("Float", ((color & 0xFF)) / 255, colorBuf, 8)            ; B
+        NumPut("Float", ((color & 0xFF000000) >> 24) / 255, colorBuf, 12) ; A
+        
+        return colorBuf
+    }
     /**
      * Create a MARGINS structure
      * @param {Integer} cxLeftWidth - Left width
@@ -75,14 +158,6 @@ class D2D1Structs {
         return rtPtr
     }
     
-    /**
-     * Create a D2D1_HWND_RENDER_TARGET_PROPERTIES structure
-     * @param {Integer} hwnd - Window handle
-     * @param {Integer} width - Width
-     * @param {Integer} height - Height
-     * @param {Integer} D2D1_PRESENT_OPTIONS - Present options
-     * @returns {Buffer} D2D1_HWND_RENDER_TARGET_PROPERTIES structure
-     */
     /**
      * Create a D2D1_HWND_RENDER_TARGET_PROPERTIES structure
      * @param {Integer} hwnd - Window handle

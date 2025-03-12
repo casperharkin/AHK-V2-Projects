@@ -25,6 +25,7 @@
 #SingleInstance Force
 #Include "D2D1Structs.ahk"
 #Include "D2D1Shapes.ahk"
+#Include "D2D1Events.ahk"
 
 ; Based on Spawnova's Direct2D overlay class: https://github.com/Spawnova/ShinsOverlayClass
 
@@ -96,6 +97,9 @@ class D2D1 {
     x := 0
     y := 0
     vsync := true  ; VSync enabled by default
+    
+    ; Event system
+    events := D2D1EventSystem()
     
     ; Buffer properties
     _rect1Ptr := 0
@@ -192,6 +196,17 @@ class D2D1 {
         
         return this
     }
+    
+
+    getVsync(){
+        return this.vsync
+    }
+    getAntialias(){
+        currentMode := DllCall(this._vTable(this._renderTarget, 33), "Ptr", this._renderTarget, "Uint*", &antialiasMode := 0) == 0 ? antialiasMode : 1
+        return (currentMode == 0)
+    }
+
+
     
     /**
      * Load required DLLs
@@ -377,6 +392,15 @@ class D2D1 {
      * @param {Integer} h - Height (optional)
      */
     setPosition(x, y, w := 0, h := 0) {
+        ; Store old values for event
+        oldX := this.x
+        oldY := this.y
+        oldWidth := this.width
+        oldHeight := this.height
+        
+        ; Trigger beforePositionChange event
+        this.events.trigger("beforePositionChange", this, {x: oldX, y: oldY, width: oldWidth, height: oldHeight}, {x: x, y: y, width: (w ? w : oldWidth), height: (h ? h : oldHeight)})
+        
         this.x := x
         this.y := y
         
@@ -388,6 +412,9 @@ class D2D1 {
         
         DllCall("MoveWindow", "Uptr", this.hwnd, "int", x, "int", y,
                 "int", this.width, "int", this.height, "char", 1)
+        
+        ; Trigger afterPositionChange event
+        this.events.trigger("afterPositionChange", this, {x: this.x, y: this.y, width: this.width, height: this.height})
     }
     
     /**
@@ -395,9 +422,23 @@ class D2D1 {
      * @param {Boolean} enable - Whether to enable antialiasing
      */
     setAntialias(enable := true) {
+        ; Get current antialiasing mode
+        currentMode := DllCall(this._vTable(this._renderTarget, 33), "Ptr", this._renderTarget, "Uint*", &antialiasMode := 0) == 0 ? antialiasMode : 1
+        currentEnabled := (currentMode == 0)
+        
+        ; If the setting hasn't changed, do nothing
+        if (currentEnabled == enable)
+            return
+        
+        ; Trigger beforeAntialiasChange event
+        this.events.trigger("beforeAntialiasChange", this, currentEnabled, enable)
+        
         ; D2D1_ANTIALIAS_MODE_PER_PRIMITIVE = 0
         ; D2D1_ANTIALIAS_MODE_ALIASED = 1
         DllCall(this._vTable(this._renderTarget, 32), "Ptr", this._renderTarget, "Uint", enable ? 0 : 1)
+        
+        ; Trigger afterAntialiasChange event
+        this.events.trigger("afterAntialiasChange", this, enable)
     }
     
     /**
@@ -409,6 +450,9 @@ class D2D1 {
         ; If the setting hasn't changed, do nothing
         if (this.vsync = enable)
             return true
+        
+        ; Trigger beforeVSyncChange event
+        this.events.trigger("beforeVSyncChange", this, this.vsync, enable)
             
         ; Update the VSync setting
         this.vsync := enable
@@ -449,7 +493,36 @@ class D2D1 {
         ; Restore previous antialiasing setting
         this.setAntialias(currentAntialias == 0)
         
+        ; Trigger afterVSyncChange event
+        this.events.trigger("afterVSyncChange", this, this.vsync)
+        
         return true
+    }
+    
+    /**
+     * Resize the render target
+     * @param {Integer} x - X position (usually 0)
+     * @param {Integer} y - Y position (usually 0)
+     * @param {Integer} w - New width
+     * @param {Integer} h - New height
+     */
+    resize(x, y, w, h) {
+        ; Store old values for event
+        oldWidth := this.width
+        oldHeight := this.height
+        
+        ; Trigger beforeResize event
+        this.events.trigger("beforeResize", this, {width: oldWidth, height: oldHeight}, {width: w, height: h})
+        
+        ; Update dimensions
+        this.width := w
+        this.height := h
+        
+        ; Resize the render target
+        DllCall(this._nrSize, "Ptr", this._renderTarget, "ptr", D2D1Structs.D2D1_SIZE_U(w, h))
+        
+        ; Trigger afterResize event
+        this.events.trigger("afterResize", this, {width: this.width, height: this.height})
     }
     
     /**
@@ -467,6 +540,9 @@ class D2D1 {
             }
             return 0
         }
+        
+        ; Trigger beforeDraw event
+        this.events.trigger("beforeDraw", this)
         
         DllCall(this._beginDraw, "Ptr", this._renderTarget)
         DllCall(this._clear, "Ptr", this._renderTarget, "Ptr", this._clrPtr)
@@ -1067,8 +1143,12 @@ class D2D1 {
     endDraw() {
         local pOut := 0
         
-        if (this._drawing)
+        if (this._drawing) {
             DllCall(this._endDraw, "Ptr", this._renderTarget, "Ptr*", &pOut, "Ptr*", &pOut)
+            
+            ; Trigger afterDraw event
+            this.events.trigger("afterDraw", this)
+        }
     }
     
     /**
@@ -1147,13 +1227,13 @@ class D2D1 {
      * for reliable resource cleanup
      */
     cleanup() {
-
+        ; Trigger beforeCleanup event
+        this.events.trigger("beforeCleanup", this)
         
         ; First check if we're still drawing
         if (this._drawing) {
             this.endDraw()
             this._drawing := 0
-
         }
         
         ; Shutdown GDI+
@@ -1164,6 +1244,9 @@ class D2D1 {
         
         ; Remove message handler
         OnMessage(0x14, this._onEraseFunc, 0)
+        
+        ; Trigger afterCleanup event
+        this.events.trigger("afterCleanup", this)
     }
 }
 

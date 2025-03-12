@@ -9,7 +9,7 @@ A turn-based robot battle game set in an alien wasteland, developed in AutoHotke
 Rustborn is a tactical RPG where you control a customizable robot in a post-apocalyptic alien environment. Battle against increasingly powerful opponents, salvage their parts to upgrade your robot, and uncover the secrets of the wasteland.
 
 <!-- Screenshot will be added once available -->
-<!-- ![Game Screenshot](screenshot.png) -->
+![Screenshot](gameplay.png)
 
 ## ✨ Features
 

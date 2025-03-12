@@ -112,7 +112,7 @@ graph TD
 
 Rustborn is currently in active development with a functional prototype. Here's the current status:
 
-### Implemented Features
+### Not Yet Implemented Features
 - ✅ Core game loop and state management
 - ✅ Robot class with customizable parts
 - ✅ Basic battle system with turn-based combat

@@ -200,6 +200,24 @@ Colors are specified in `0xAARRGGBB` or `0xRRGGBB` format:
 
 If you provide `0xRRGGBB`, alpha will be set to `0xFF` (fully opaque).
 
+## Documentation
+
+The following documentation files provide detailed information about the library components:
+
+1. **[d2d1Structs_Documentation.md](d2d1Structs_Documentation.md)**: Comprehensive documentation for the structure definitions in `d2d1Structs.ahk`, including:
+   - Detailed technical specifications for each structure
+   - Memory layout and size information
+   - Usage examples and best practices
+   - Performance optimization tips
+
+2. **[D2D1Enums_Documentation.md](D2D1Enums_Documentation.md)**: Comprehensive documentation for the enumeration values in `D2D1Enums.ahk`, including:
+   - Detailed explanations of each enumeration
+   - Technical details and Direct2D equivalents
+   - Usage contexts and examples
+   - Implementation approach
+
+These documentation files provide both tutorial-based guidance with practical examples and detailed technical reference information.
+
 ## Planned Features
 
 The following features are planned for future releases:
@@ -207,21 +225,6 @@ The following features are planned for future releases:
 - **Image Drawing**: Support for loading and rendering images from files
 - **Bitmap Effects**: Applying filters and transformations to images
 - **Additional Shape Types**: More complex shape types and path operations
-
-## Documentation
-
-For detailed documentation, see [d2d1_documentation.md](d2d1_documentation.md), which includes:
-
-1. Introduction and architecture overview
-2. Getting started guide
-3. Core concepts explanation
-4. Basic drawing operations
-5. Shape classes reference
-6. Text rendering guide
-7. Animation techniques
-8. Advanced features
-9. Performance optimization tips
-10. Complete API reference
 
 ## Attribution
 

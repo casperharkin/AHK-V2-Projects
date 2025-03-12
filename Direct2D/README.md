@@ -202,19 +202,32 @@ If you provide `0xRRGGBB`, alpha will be set to `0xFF` (fully opaque).
 
 ## Documentation
 
-The following documentation files provide detailed information about the library components:
+Comprehensive documentation for the Direct2D wrapper is available in the `documentation` directory:
 
-1. **[d2d1Structs_Documentation.md](d2d1Structs_Documentation.md)**: Comprehensive documentation for the structure definitions in `d2d1Structs.ahk`, including:
+1. **[d2d1_documentation.md](documentation/d2d1_documentation.md)**: Main documentation for the D2D1 class, including:
+   - Overview of the Direct2D wrapper architecture
+   - Detailed reference for all methods and properties
+   - Event system and resource management
+   - Performance optimization tips
+   - Practical examples
+
+2. **[d2d1Structs_Documentation.md](documentation/d2d1Structs_Documentation.md)**: Documentation for the structure definitions in `d2d1Structs.ahk`, including:
    - Detailed technical specifications for each structure
    - Memory layout and size information
    - Usage examples and best practices
    - Performance optimization tips
 
-2. **[D2D1Enums_Documentation.md](D2D1Enums_Documentation.md)**: Comprehensive documentation for the enumeration values in `D2D1Enums.ahk`, including:
+3. **[D2D1Enums_Documentation.md](documentation/D2D1Enums_Documentation.md)**: Documentation for the enumeration values in `D2D1Enums.ahk`, including:
    - Detailed explanations of each enumeration
    - Technical details and Direct2D equivalents
    - Usage contexts and examples
    - Implementation approach
+
+4. **[d2d1Shapes_Documentation.md](documentation/d2d1Shapes_Documentation.md)**: Documentation for the shape classes in `d2d1Shapes.ahk`, including:
+   - Class hierarchy and inheritance
+   - Detailed reference for each shape class
+   - Usage examples and best practices
+   - Animation techniques
 
 These documentation files provide both tutorial-based guidance with practical examples and detailed technical reference information.
 

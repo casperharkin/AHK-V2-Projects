@@ -766,7 +766,7 @@ myGui := Gui(" +Alwaysontop +Resize", "Fill Mode Example")
 myGui.Show("w800 h600")
 
 ; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 100, 100, 800, 600)
+d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
 
 ; Create a path geometry with alternate fill mode
 pathGeometry1 := d2d.createPathGeometry(D2D1Enums.FILL_MODE.D2D1_FILL_MODE_ALTERNATE)

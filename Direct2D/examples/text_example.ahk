@@ -150,7 +150,3 @@ UpdateAnimationVariables() {
         scaleDirection := 1
     }
 }
-
-; Hotkeys
-Hotkey "F9", (*) => Reload()
-Hotkey "Escape", (*) => ExitApp()

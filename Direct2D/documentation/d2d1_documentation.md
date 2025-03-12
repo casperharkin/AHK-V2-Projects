@@ -894,6 +894,7 @@ For more detailed information about specific components, please refer to the fol
 
 - [d2d1Structs_Documentation.md](d2d1Structs_Documentation.md): Documentation for structure definitions
 - [D2D1Enums_Documentation.md](D2D1Enums_Documentation.md): Documentation for enumeration values
+- [d2d1Shapes_Documentation.md](d2d1Shapes_Documentation.md): Documentation for shape classes
 
 ## Attribution
 

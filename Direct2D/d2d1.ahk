@@ -23,6 +23,7 @@
 
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include "D2D1Enums.ahk"
 #Include "D2D1Structs.ahk"
 #Include "D2D1Shapes.ahk"
 #Include "D2D1Events.ahk"
@@ -126,7 +127,6 @@ class D2D1 {
     _createStroke := 0
     _createTextFormat := 0
     _createTextLayout := 0
-    
     ; Constants
     static DEFAULT_DPI := 96
     static DEFAULT_ALPHA_MODE := 1
@@ -296,16 +296,18 @@ class D2D1 {
      */
     _createRenderTarget() {
         D2D1_RENDER_TARGET_PROPERTIES := D2D1Structs.D2D1_RENDER_TARGET_PROPERTIES(
-            D2D1_RENDER_TARGET_TYPE := 0, DXGI_FORMAT := 0,
-            D2D1_ALPHA_MODE := D2D1.DEFAULT_ALPHA_MODE,
+            D2D1_RENDER_TARGET_TYPE := D2D1Enums.RENDER_TARGET_TYPE.D2D1_RENDER_TARGET_TYPE_DEFAULT,
+            DXGI_FORMAT := 0,
+            D2D1_ALPHA_MODE := D2D1Enums.OPACITY_MASK_CONTENT.D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL,
             dpiX := D2D1.DEFAULT_DPI, dpiY := D2D1.DEFAULT_DPI,
-            D2D1_RENDER_TARGET_USAGE := 0, D2D1_FEATURE_LEVEL := 0
+            D2D1_RENDER_TARGET_USAGE := D2D1Enums.RENDER_TARGET_USAGE.D2D1_RENDER_TARGET_USAGE_NONE,
+            D2D1_FEATURE_LEVEL := D2D1Enums.FEATURE_LEVEL.D2D1_FEATURE_LEVEL_DEFAULT
         )
         
         ; Set present options based on VSync setting
-        ; D2D1_PRESENT_OPTIONS_NONE = 0 (VSync enabled)
-        ; D2D1_PRESENT_OPTIONS_IMMEDIATELY = 2 (VSync disabled)
-        presentOptions := this.vsync ? 0 : 2
+        presentOptions := this.vsync ?
+            D2D1Enums.PRESENT_OPTIONS.D2D1_PRESENT_OPTIONS_NONE :
+            D2D1Enums.PRESENT_OPTIONS.D2D1_PRESENT_OPTIONS_IMMEDIATELY
         
         D2D1_HWND_RENDER_TARGET_PROPERTIES := D2D1Structs.D2D1_HWND_RENDER_TARGET_PROPERTIES(
             this.hwnd, this.width, this.height, presentOptions
@@ -353,7 +355,7 @@ class D2D1 {
         pOut := 0
         this._createGuid("{b859ee5a-d838-4b5b-a2e8-1adc7d93db48}", &clsidwFactory)
         
-        ; Create DirectWrite factory (0 = DWRITE_FACTORY_TYPE_SHARED)
+        ; Create DirectWrite factory using DWRITE_FACTORY_TYPE_SHARED (0)
         if (DllCall("dwrite\DWriteCreateFactory", "uint", 0, "Ptr", clsidwFactory, "Ptr*", &pOut) != 0) {
             throw Error("Failed to create DirectWrite factory. Error: " DllCall("GetLastError", "uint"), -1)
         }
@@ -433,9 +435,10 @@ class D2D1 {
         ; Trigger beforeAntialiasChange event
         this.events.trigger("beforeAntialiasChange", this, currentEnabled, enable)
         
-        ; D2D1_ANTIALIAS_MODE_PER_PRIMITIVE = 0
-        ; D2D1_ANTIALIAS_MODE_ALIASED = 1
-        DllCall(this._vTable(this._renderTarget, 32), "Ptr", this._renderTarget, "Uint", enable ? 0 : 1)
+        ; Use the enumeration values from D2D1Enums
+        DllCall(this._vTable(this._renderTarget, 32), "Ptr", this._renderTarget, "Uint",
+            enable ? D2D1Enums.ANTIALIAS_MODE.D2D1_ANTIALIAS_MODE_PER_PRIMITIVE :
+                   D2D1Enums.ANTIALIAS_MODE.D2D1_ANTIALIAS_MODE_ALIASED)
         
         ; Trigger afterAntialiasChange event
         this.events.trigger("afterAntialiasChange", this, enable)
@@ -1083,6 +1086,10 @@ class D2D1 {
         textFormat := this._fonts.Has(fontName size) ? this._fonts[fontName size] : this._cacheFont(fontName, size)
         
         ; Set text alignment based on options
+        ; Using DirectWrite text alignment constants:
+        ; DWRITE_TEXT_ALIGNMENT_LEADING = 0
+        ; DWRITE_TEXT_ALIGNMENT_TRAILING = 1
+        ; DWRITE_TEXT_ALIGNMENT_CENTER = 2
         if (InStr(extraOptions, "aRight"))
             DllCall(this._vTable(textFormat, 3), "ptr", textFormat, "uint", 1)  ; DWRITE_TEXT_ALIGNMENT_TRAILING
         else if (InStr(extraOptions, "aCenter"))

@@ -1,1086 +1,900 @@
-# Direct2D Wrapper for AutoHotkey v2 - Documentation
+# Direct2D Wrapper for AutoHotkey v2 (d2d1.ahk)
 
-## 1. Introduction
+## Introduction
 
-### Purpose and Scope
-The `D2D1` class is a comprehensive wrapper for the Windows Direct2D API, designed to simplify the creation of hardware-accelerated 2D graphics in AutoHotkey v2 applications. It provides an object-oriented interface to Direct2D's capabilities, abstracting away much of the complexity of working directly with the COM-based API.
+The `d2d1.ahk` file is the core component of the Direct2D wrapper for AutoHotkey v2. It provides an object-oriented interface to the Windows Direct2D API, enabling hardware-accelerated 2D graphics rendering in AutoHotkey applications. This document offers comprehensive documentation for the `D2D1` class and related components, including both tutorial-based examples and detailed technical information.
 
-### Origin and Attribution
-This class is based on Spawnova's Direct2D overlay class, which can be found at: https://github.com/Spawnova/ShinsOverlayClass. The implementation has been significantly enhanced and adapted for AutoHotkey v2, with additional features and improvements.
+## Overview
 
-### High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     AutoHotkey Script                    │
-│                                                          │
-│  ┌─────────────────────────┐  ┌─────────────────────┐   │
-│  │        D2D1 Class       │  │  D2D1Structs Class  │   │
-│  │ (Main wrapper interface)│  │ (Structure creation)│   │
-│  └───────────┬─────────────┘  └─────────┬───────────┘   │
-│              │                          │               │
-│  ┌───────────┴──────────────┐ ┌─────────┴─────────────┐ │
-│  │   D2D1ResourceManager    │ │     Shape Classes     │ │
-│  │  (Resource management)   │ │ (Object-oriented API) │ │
-│  └──────────────────────────┘ └───────────────────────┘ │
-│                                                          │
-└──────────────┬──────────────────────────┬───────────────┘
-               │                          │
-               ▼                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                 Windows COM Interface                    │
-│                                                          │
-│  ┌─────────────────┐  ┌───────────────┐  ┌───────────┐  │
-│  │    Direct2D     │  │  DirectWrite  │  │   GDI+    │  │
-│  └─────────────────┘  └───────────────┘  └───────────┘  │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
-
-The architecture consists of several main components:
-
-1. **D2D1 Class**: The main wrapper that provides methods for drawing operations and manages Direct2D resources
-2. **D2D1Structs Class**: A utility class that creates various structure definitions required by Direct2D
-3. **D2D1ResourceManager Class**: Manages COM objects and ensures proper resource cleanup
-4. **Shape Classes**: A hierarchy of classes for object-oriented drawing operations
-5. **Scene Graph**: The D2D1Scene class for managing collections of shapes
-
-These components interact with the Windows COM interface to access Direct2D, DirectWrite, and GDI+ functionality.
+Direct2D is a hardware-accelerated, immediate-mode 2D graphics API from Microsoft that provides high-performance and high-quality rendering for 2D geometry, bitmaps, and text. The `d2d1.ahk` wrapper abstracts away much of the complexity of working directly with the COM-based API, providing a simpler, more AutoHotkey-friendly interface.
 
 ### Key Features
 
-- Hardware-accelerated 2D graphics rendering
-- Object-oriented API with shape classes
-- Scene graph for managing multiple shapes
-- Text rendering with formatting options and effects
-- Resource management with automatic cleanup
-- VSync control for smooth animations
-- Antialiasing settings for quality control
-- Support for transparency and blending
-- Comprehensive error handling
-- Font caching for improved performance
+- **Hardware Acceleration**: Utilizes GPU for faster rendering
+- **Object-Oriented Design**: Clean, modular architecture
+- **Resource Management**: Automatic cleanup of Direct2D resources
+- **Event System**: Flexible event handling for various rendering events
+- **Shape Classes**: High-level abstraction for common shapes
+- **Scene Graph**: Manage multiple shapes efficiently
+- **Text Rendering**: Comprehensive text formatting and effects
+- **Performance Controls**: VSync and antialiasing options
 
-## 2. Getting Started
+## Architecture
 
-### Installation and Requirements
+The Direct2D wrapper consists of several components that work together:
 
-To use the Direct2D wrapper, you need:
+1. **D2D1 Class** (`d2d1.ahk`): Main class for Direct2D operations
+2. **D2D1Structs** (`d2d1Structs.ahk`): Structure definitions for Direct2D
+3. **D2D1Enums** (`D2D1Enums.ahk`): Enumeration values for Direct2D
+4. **D2D1Shapes** (`d2d1Shapes.ahk`): Shape classes for higher-level abstraction
+5. **D2D1Events** (`d2d1Events.ahk`): Event system for Direct2D operations
 
-1. AutoHotkey v2.0 or later
-2. Windows 7 or later (Windows 10/11 recommended)
-3. A graphics card with Direct2D support
+### Technical Architecture
 
-To include the library in your project:
+The wrapper uses a layered architecture:
 
-```ahk
-#Include "path\to\d2d1.ahk"
-```
+1. **Application Layer**: Your AutoHotkey code
+2. **Wrapper Layer**: D2D1 class and related components
+3. **COM Interface Layer**: Direct communication with Direct2D COM objects
+4. **Direct2D Layer**: Microsoft's Direct2D API
+5. **DirectX/GPU Layer**: Hardware acceleration
+
+## Getting Started
 
 ### Basic Setup
 
-Creating a basic Direct2D application involves these steps:
+```autohotkey
+#Include "d2d1.ahk"
 
-1. Create a GUI window
-2. Initialize the D2D1 instance
-3. Set up a drawing function
-4. Create a timer to refresh the display
-
-Here's a minimal example:
-
-```ahk
-; Create GUI window
+; Create a GUI window
 myGui := Gui(" +Alwaysontop +Resize", "D2D1 Example")
 myGui.Show("w800 h600")
 
 ; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 100, 100, 800, 600)
+d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
 
-; Set up drawing timer
-SetTimer(DrawExample.Bind(d2d), 40)  ; ~25 FPS
+; Begin drawing
+d2d.beginDraw()
+
+; Draw something
+d2d.fillRectangle(100, 100, 200, 150, 0xFF0000)
+
+; End drawing
+d2d.endDraw()
+```
+
+### Animation Setup
+
+```autohotkey
+#Include "d2d1.ahk"
+
+; Create a GUI window
+myGui := Gui(" +Alwaysontop +Resize", "D2D1 Animation")
+myGui.Show("w800 h600")
+
+; Initialize D2D1 instance
+d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
+
+; Create a drawing function
+drawFunc := DrawFrame.Bind(d2d)
+
+; Set up animation timer (60 FPS)
+SetTimer(drawFunc, 16)
 
 ; Drawing function
-DrawExample(d2d) {
+DrawFrame(d2d) {
+    static angle := 0
+    
+    ; Update animation state
+    angle += 2
+    if (angle >= 360)
+        angle := 0
+        
+    ; Calculate position
+    x := 400 + 150 * Cos(angle * 0.0174533)
+    y := 300 + 150 * Sin(angle * 0.0174533)
+    
     ; Begin drawing
     d2d.beginDraw()
     
     ; Clear background
     d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
     
-    ; Draw a shape
-    d2d.fillRectangle(30, 30, 100, 100, 0xFFFF1D)
+    ; Draw animated circle
+    d2d.fillCircle(x, y, 50, 0x0000FF)
     
     ; End drawing
     d2d.endDraw()
 }
-
-; Hotkeys
-Hotkey "F9", (*) => Reload()
-Hotkey "Escape", (*) => ExitApp()
 ```
 
-### Constructor Parameters
+## D2D1 Class Reference
 
-When creating a D2D1 instance, you can specify these parameters:
+The `D2D1` class is the main entry point for Direct2D operations. It provides methods for creating and managing Direct2D resources, as well as drawing operations.
 
-```ahk
-d2d := D2D1(hwnd, x, y, width, height, vsync)
+### Constructor
+
+```autohotkey
+d2d := D2D1(hwnd, x := 0, y := 0, width := 800, height := 600, vsync := true)
 ```
 
-- `hwnd`: Window handle for the GUI
-- `x`: X position of the window (default: 100)
-- `y`: Y position of the window (default: 100)
-- `width`: Width of the rendering area (default: 800)
-- `height`: Height of the rendering area (default: 600)
-- `vsync`: Whether to enable vertical synchronization (default: true)
+**Parameters**:
+- `hwnd` (Integer): Window handle
+- `x` (Integer): X position of the window
+- `y` (Integer): Y position of the window
+- `width` (Integer): Width of the render target
+- `height` (Integer): Height of the render target
+- `vsync` (Boolean): Whether to enable VSync (default: true)
 
-### Drawing Cycle
+**Returns**: D2D1 instance
 
-Every Direct2D application follows this drawing cycle:
+**Technical Details**:
+- Creates a Direct2D factory
+- Initializes GDI+ for compatibility
+- Creates a window render target
+- Sets up event handling
+- Allocates memory buffers for drawing operations
 
-1. Call `beginDraw()` to start drawing operations
-2. Perform drawing operations (rectangles, circles, text, etc.)
-3. Call `endDraw()` to finish drawing and update the display
+### Drawing Control Methods
 
-It's important to always call `endDraw()` after `beginDraw()` to prevent resource leaks.
+#### beginDraw
 
-## 3. Core Concepts
+```autohotkey
+d2d.beginDraw()
+```
 
-### Direct2D API Overview
+Begins a drawing operation. Must be called before any drawing methods.
 
-Direct2D is a hardware-accelerated, immediate-mode 2D graphics API that provides high-performance and high-quality rendering for 2D geometry, bitmaps, and text. It's designed to interoperate well with GDI, GDI+, and Direct3D.
+**Returns**: 1 if successful, 0 otherwise
 
-Key components of Direct2D used in this wrapper:
+**Technical Details**:
+- Calls ID2D1RenderTarget::BeginDraw()
+- Triggers the "beforeDraw" event
+- Sets the drawing flag to prevent nested drawing operations
 
-- **Factories**: Create resources and devices
-- **Render Targets**: Surfaces that can be drawn on
-- **Brushes**: Define how shapes are filled
-- **Geometries**: Define complex shapes
-- **Stroke Styles**: Define how lines are drawn
-- **Text Formats**: Define text appearance
+#### endDraw
 
-### COM Object Model Abstraction
+```autohotkey
+d2d.endDraw()
+```
 
-The Direct2D API is based on the Component Object Model (COM), which is a binary interface standard. Working with COM objects directly requires:
+Ends a drawing operation. Must be called after all drawing methods.
 
-1. Creating and managing COM objects
-2. Accessing methods through virtual function tables (vTables)
-3. Properly releasing objects to prevent memory leaks
+**Technical Details**:
+- Calls ID2D1RenderTarget::EndDraw()
+- Triggers the "afterDraw" event
+- Clears the drawing flag
 
-This wrapper abstracts these complexities by:
+#### clear
 
-1. Handling COM object creation and management internally
-2. Providing simple methods that map to Direct2D functionality
-3. Using a resource manager to automatically release COM objects
+```autohotkey
+d2d.clear()
+```
+
+Clears the render target.
+
+**Technical Details**:
+- Calls ID2D1RenderTarget::BeginDraw()
+- Calls ID2D1RenderTarget::Clear()
+- Calls ID2D1RenderTarget::EndDraw()
+
+### Shape Drawing Methods
+
+#### drawRectangle
+
+```autohotkey
+d2d.drawRectangle(x, y, w, h, color, thickness := 1, rounded := 0)
+```
+
+Draws a rectangle outline.
+
+**Parameters**:
+- `x` (Number): Top-left X coordinate
+- `y` (Number): Top-left Y coordinate
+- `w` (Number): Width
+- `h` (Number): Height
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `thickness` (Number): Line thickness
+- `rounded` (Boolean): Whether to use rounded corners
+
+**Technical Details**:
+- Creates a D2D_RECT_F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::DrawRectangle()
+
+#### fillRectangle
+
+```autohotkey
+d2d.fillRectangle(x, y, w, h, color)
+```
+
+Fills a rectangle with the specified color.
+
+**Parameters**:
+- `x` (Number): Top-left X coordinate
+- `y` (Number): Top-left Y coordinate
+- `w` (Number): Width
+- `h` (Number): Height
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+
+**Technical Details**:
+- Creates a D2D_RECT_F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::FillRectangle()
+
+#### drawRoundedRectangle
+
+```autohotkey
+d2d.drawRoundedRectangle(x, y, w, h, radiusX, radiusY, color, thickness := 1, rounded := 0)
+```
+
+Draws a rounded rectangle outline.
+
+**Parameters**:
+- `x` (Number): Top-left X coordinate
+- `y` (Number): Top-left Y coordinate
+- `w` (Number): Width
+- `h` (Number): Height
+- `radiusX` (Number): X radius of the rounded corners
+- `radiusY` (Number): Y radius of the rounded corners
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `thickness` (Number): Line thickness
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Technical Details**:
+- Creates a D2D1_ROUNDED_RECT structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::DrawRoundedRectangle()
+
+#### fillRoundedRectangle
+
+```autohotkey
+d2d.fillRoundedRectangle(x, y, w, h, radiusX, radiusY, color)
+```
+
+Fills a rounded rectangle with the specified color.
+
+**Parameters**:
+- `x` (Number): Top-left X coordinate
+- `y` (Number): Top-left Y coordinate
+- `w` (Number): Width
+- `h` (Number): Height
+- `radiusX` (Number): X radius of the rounded corners
+- `radiusY` (Number): Y radius of the rounded corners
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+
+**Technical Details**:
+- Creates a D2D1_ROUNDED_RECT structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::FillRoundedRectangle()
+
+#### drawCircle
+
+```autohotkey
+d2d.drawCircle(x, y, radius, color, thickness := 1, rounded := 0)
+```
+
+Draws a circle outline.
+
+**Parameters**:
+- `x` (Number): Center X coordinate
+- `y` (Number): Center Y coordinate
+- `radius` (Number): Circle radius
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `thickness` (Number): Line thickness
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Technical Details**:
+- Creates a D2D_RECT_F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::DrawEllipse()
+
+#### fillCircle
+
+```autohotkey
+d2d.fillCircle(x, y, radius, color)
+```
+
+Fills a circle with the specified color.
+
+**Parameters**:
+- `x` (Number): Center X coordinate
+- `y` (Number): Center Y coordinate
+- `radius` (Number): Circle radius
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+
+**Technical Details**:
+- Creates a D2D_RECT_F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::FillEllipse()
+
+#### drawEllipse
+
+```autohotkey
+d2d.drawEllipse(x, y, radiusX, radiusY, color, thickness := 1, rounded := 0)
+```
+
+Draws an ellipse outline.
+
+**Parameters**:
+- `x` (Number): Center X coordinate
+- `y` (Number): Center Y coordinate
+- `radiusX` (Number): X radius
+- `radiusY` (Number): Y radius
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `thickness` (Number): Line thickness
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Technical Details**:
+- Creates a D2D_RECT_F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::DrawEllipse()
+
+#### fillEllipse
+
+```autohotkey
+d2d.fillEllipse(x, y, radiusX, radiusY, color)
+```
+
+Fills an ellipse with the specified color.
+
+**Parameters**:
+- `x` (Number): Center X coordinate
+- `y` (Number): Center Y coordinate
+- `radiusX` (Number): X radius
+- `radiusY` (Number): Y radius
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+
+**Technical Details**:
+- Creates a D2D_RECT_F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::FillEllipse()
+
+#### drawLine
+
+```autohotkey
+d2d.drawLine(x1, y1, x2, y2, color := 0xFFFFFFFF, thickness := 1, rounded := 0)
+```
+
+Draws a line.
+
+**Parameters**:
+- `x1` (Number): Start X coordinate
+- `y1` (Number): Start Y coordinate
+- `x2` (Number): End X coordinate
+- `y2` (Number): End Y coordinate
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `thickness` (Number): Line thickness
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Technical Details**:
+- Creates a D2D_POINT_2F structure
+- Sets the brush color
+- Calls ID2D1RenderTarget::DrawLine()
+- Handles differences between 32-bit and 64-bit environments
+
+#### drawPolygon
+
+```autohotkey
+d2d.drawPolygon(points, color, thickness := 1, rounded := 0, xOffset := 0, yOffset := 0)
+```
+
+Draws a polygon outline.
+
+**Parameters**:
+- `points` (Array): Array of 2D points, e.g. [[0,0],[5,0],[0,5]]
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `thickness` (Number): Line thickness
+- `rounded` (Boolean): Whether to use rounded corners
+- `xOffset` (Number): X offset
+- `yOffset` (Number): Y offset
+
+**Returns**: 1 if successful, 0 otherwise
+
+**Technical Details**:
+- Creates a path geometry
+- Adds the points to the geometry
+- Sets the brush color
+- Calls ID2D1RenderTarget::DrawGeometry()
+
+#### fillPolygon
+
+```autohotkey
+d2d.fillPolygon(points, color, xOffset := 0, yOffset := 0)
+```
+
+Fills a polygon with the specified color.
+
+**Parameters**:
+- `points` (Array): Array of 2D points, e.g. [[0,0],[5,0],[0,5]]
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+- `xOffset` (Number): X offset
+- `yOffset` (Number): Y offset
+
+**Returns**: 1 if successful, 0 otherwise
+
+**Technical Details**:
+- Creates a path geometry
+- Adds the points to the geometry
+- Sets the brush color
+- Calls ID2D1RenderTarget::FillGeometry()
+
+### Text Drawing Methods
+
+#### drawText
+
+```autohotkey
+d2d.drawText(text, x, y, size := 18, color := 0xFFFFFFFF, fontName := "Arial", extraOptions := "")
+```
+
+Draws text on the canvas with advanced options.
+
+**Parameters**:
+- `text` (String): Text to draw
+- `x` (Number): X position
+- `y` (Number): Y position
+- `size` (Number): Font size
+- `color` (Integer): Text color in 0xAARRGGBB or 0xRRGGBB format
+- `fontName` (String): Font family name
+- `extraOptions` (String): Additional options for text rendering
+  - `w[number]` - Width
+  - `h[number]` - Height
+  - `a[Left/Right/Center]` - Alignment
+  - `ds[hex color]` - Drop shadow color
+  - `dsx[number]` - Drop shadow X offset
+  - `dsy[number]` - Drop shadow Y offset
+  - `ol[hex color]` - Outline color
+
+**Technical Details**:
+- Creates or retrieves a cached text format
+- Sets the brush color
+- Parses extra options
+- Applies text alignment
+- Handles special effects (drop shadow, outline)
+- Calls ID2D1RenderTarget::DrawText()
+
+#### createTextFormat
+
+```autohotkey
+d2d.createTextFormat(fontFamily, fontSize, fontWeight := "normal", fontStyle := "normal", formatName := "")
+```
+
+Create a text format (font).
+
+**Parameters**:
+- `fontFamily` (String): Font family name (e.g., "Arial")
+- `fontSize` (Number): Font size in points
+- `fontWeight` (String): Font weight ("normal", "bold", "light", "black", etc.)
+- `fontStyle` (String): Font style ("normal", "italic", "oblique")
+- `formatName` (String): Name to reference this format later (optional)
+
+**Returns**: Text format pointer
+
+**Technical Details**:
+- Converts font weight and style strings to numeric values
+- Creates a DirectWrite text format
+- Stores the format in the text formats map if a name is provided
+- Adds the format to the resource manager
+
+### Configuration Methods
+
+#### setPosition
+
+```autohotkey
+d2d.setPosition(x, y, w := 0, h := 0)
+```
+
+Set position of the window.
+
+**Parameters**:
+- `x` (Integer): X position
+- `y` (Integer): Y position
+- `w` (Integer): Width (optional)
+- `h` (Integer): Height (optional)
+
+**Technical Details**:
+- Triggers "beforePositionChange" event
+- Updates position properties
+- Resizes the render target if needed
+- Moves the window
+- Triggers "afterPositionChange" event
+
+#### setAntialias
+
+```autohotkey
+d2d.setAntialias(enable := true)
+```
+
+Set antialiasing mode.
+
+**Parameters**:
+- `enable` (Boolean): Whether to enable antialiasing
+
+**Technical Details**:
+- Gets current antialiasing mode
+- Triggers "beforeAntialiasChange" event
+- Sets the antialiasing mode
+- Triggers "afterAntialiasChange" event
+
+#### setVSync
+
+```autohotkey
+d2d.setVSync(enable := true)
+```
+
+Enable or disable VSync.
+
+**Parameters**:
+- `enable` (Boolean): Whether to enable VSync
+
+**Returns**: True if successful, false otherwise
+
+**Technical Details**:
+- Triggers "beforeVSyncChange" event
+- Updates the VSync setting
+- Recreates the render target with the new VSync setting
+- Recreates the brush
+- Reinitializes function pointers
+- Restores previous antialiasing setting
+- Triggers "afterVSyncChange" event
+
+#### resize
+
+```autohotkey
+d2d.resize(x, y, w, h)
+```
+
+Resize the render target.
+
+**Parameters**:
+- `x` (Integer): X position (usually 0)
+- `y` (Integer): Y position (usually 0)
+- `w` (Integer): New width
+- `h` (Integer): New height
+
+**Technical Details**:
+- Triggers "beforeResize" event
+- Updates dimensions
+- Resizes the render target
+- Triggers "afterResize" event
+
+### Resource Management
+
+#### cleanup
+
+```autohotkey
+d2d.cleanup()
+```
+
+Explicit cleanup method - Call this before exiting your application for reliable resource cleanup.
+
+**Technical Details**:
+- Triggers "beforeCleanup" event
+- Ends any ongoing drawing
+- Shuts down GDI+
+- Releases all resources
+- Removes message handler
+- Triggers "afterCleanup" event
+
+## D2D1ResourceManager Class
+
+The `D2D1ResourceManager` class is responsible for managing Direct2D resources, ensuring proper cleanup when they are no longer needed.
+
+### Methods
+
+#### addResource
+
+```autohotkey
+resourceManager.addResource(name, resource, releaseMethod)
+```
+
+Add a resource to the manager.
+
+**Parameters**:
+- `name` (String): Resource name
+- `resource` (Pointer): Resource pointer
+- `releaseMethod` (Pointer): Release method pointer
+
+#### getResource
+
+```autohotkey
+resourceManager.getResource(name)
+```
+
+Get a resource by name.
+
+**Parameters**:
+- `name` (String): Resource name
+
+**Returns**: Resource pointer or 0 if not found
+
+#### releaseResource
+
+```autohotkey
+resourceManager.releaseResource(name)
+```
+
+Release a resource by name.
+
+**Parameters**:
+- `name` (String): Resource name
+
+#### releaseAll
+
+```autohotkey
+resourceManager.releaseAll()
+```
+
+Release all resources.
+
+## D2D1Scene Class
+
+The `D2D1Scene` class provides a scene graph for managing multiple shapes.
+
+### Methods
+
+#### addShape
+
+```autohotkey
+scene.addShape(shape)
+```
+
+Add a shape to the scene.
+
+**Parameters**:
+- `shape` (D2D1Shape): Shape to add
+
+#### removeShape
+
+```autohotkey
+scene.removeShape(index)
+```
+
+Remove a shape from the scene.
+
+**Parameters**:
+- `index` (Integer): Shape index
+
+#### draw
+
+```autohotkey
+scene.draw(d2d)
+```
+
+Draw all shapes in the scene.
+
+**Parameters**:
+- `d2d` (D2D1): D2D1 instance
+
+## Event System
+
+The Direct2D wrapper includes an event system that allows you to register handlers for various events.
+
+### Available Events
+
+- **beforeDraw**: Triggered before drawing operations begin
+- **afterDraw**: Triggered after drawing operations end
+- **beforePositionChange**: Triggered before the window position changes
+- **afterPositionChange**: Triggered after the window position changes
+- **beforeAntialiasChange**: Triggered before the antialiasing mode changes
+- **afterAntialiasChange**: Triggered after the antialiasing mode changes
+- **beforeVSyncChange**: Triggered before the VSync setting changes
+- **afterVSyncChange**: Triggered after the VSync setting changes
+- **beforeResize**: Triggered before the render target is resized
+- **afterResize**: Triggered after the render target is resized
+- **beforeCleanup**: Triggered before resources are cleaned up
+- **afterCleanup**: Triggered after resources are cleaned up
+
+### Registering Event Handlers
+
+```autohotkey
+d2d.events.on("eventName", callbackFunction, priority := 0)
+```
+
+**Parameters**:
+- `eventName` (String): Event name
+- `callbackFunction` (Function): Event handler function
+- `priority` (Integer): Handler priority (higher numbers execute first)
+
+**Returns**: Handler ID for later removal
+
+### Removing Event Handlers
+
+```autohotkey
+d2d.events.off("eventName", handlerId)
+```
+
+**Parameters**:
+- `eventName` (String): Event name
+- `handlerId` (Integer): Handler ID returned from on() method
+
+**Returns**: True if handler was removed, false otherwise
+
+## Performance Optimization
 
 ### Memory Management
 
-The wrapper uses several memory management patterns:
+1. **Reuse structures**: Create structures outside of animation loops when possible
+2. **Minimize allocations**: Avoid creating new structures in tight loops
+3. **Release references**: Set variables to empty (`""`) when you're done with them to help the garbage collector
 
-1. **Buffer Allocation**: Creates memory buffers for structures using the `Buffer()` function
-2. **Reference Counting**: Properly releases COM objects by calling their Release methods
-3. **Resource Manager**: The `D2D1ResourceManager` class tracks and releases resources
-4. **Cleanup in Destructor**: The `__Delete()` method ensures all resources are properly released
+### Efficient Drawing
 
-### Virtual Table (vTable) Pattern
+1. **Minimize state changes**: Group similar drawing operations together
+2. **Use appropriate methods**: Choose the right drawing method for the job
+3. **Batch operations**: Perform multiple drawing operations in a single beginDraw/endDraw pair
 
-COM objects expose their methods through virtual function tables (vTables). The wrapper accesses these methods using the `_vTable()` helper method:
+### VSync Control
 
-```ahk
+1. **Enable VSync** for smooth animations without tearing
+2. **Disable VSync** for maximum performance when tearing is not a concern
+
+### Antialiasing Control
+
+1. **Enable antialiasing** for high-quality rendering
+2. **Disable antialiasing** for maximum performance when quality is not a concern
+
+## Technical Reference
+
+### COM Interface
+
+The Direct2D wrapper uses COM (Component Object Model) to interact with the Direct2D API. This involves:
+
+1. **Creating COM objects**: Using functions like `D2D1CreateFactory`
+2. **Calling COM methods**: Using virtual table (vtable) pointers
+3. **Releasing COM objects**: Calling the `Release` method when done
+
+### Virtual Table (VTable)
+
+COM objects use a virtual table (vtable) to expose their methods. The wrapper accesses these methods using the `_vTable` helper method:
+
+```autohotkey
 _vTable(object, methodIndex) {
     return NumGet(NumGet(object + 0, 0, "ptr"), methodIndex * A_PtrSize, "Ptr")
 }
 ```
 
-This method:
-1. Gets the pointer to the vTable from the COM object (`NumGet(object + 0, 0, "ptr")`)
-2. Calculates the offset to the desired method (`methodIndex * A_PtrSize`)
-3. Returns a pointer to that method
+### 32-bit vs. 64-bit Considerations
 
-The wrapper then stores these function pointers and calls them using `DllCall()` when needed.
+The wrapper handles differences between 32-bit and 64-bit environments, particularly for:
 
-### Coordinate System
+1. **Pointer sizes**: 4 bytes in 32-bit, 8 bytes in 64-bit
+2. **Structure layouts**: Some structures have different layouts in 32-bit and 64-bit
+3. **Function calling conventions**: Different in 32-bit and 64-bit
 
-Direct2D uses a coordinate system where:
+## Examples
 
-- The origin (0,0) is at the top-left corner of the window
-- X coordinates increase to the right
-- Y coordinates increase downward
-- All coordinates are in device-independent pixels (DIPs)
+### Basic Drawing
 
-### Color Handling
+```autohotkey
+#Include "d2d1.ahk"
 
-Colors in Direct2D are represented in the ARGB format (Alpha, Red, Green, Blue), typically as a 32-bit hexadecimal value:
+; Create a GUI window
+myGui := Gui(" +Alwaysontop +Resize", "Basic Drawing")
+myGui.Show("w800 h600")
 
-```
-0xAARRGGBB
-```
+; Initialize D2D1 instance
+d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
 
-Where:
-- `AA`: Alpha channel (00-FF, where FF is fully opaque)
-- `RR`: Red component (00-FF)
-- `GG`: Green component (00-FF)
-- `BB`: Blue component (00-FF)
+; Begin drawing
+d2d.beginDraw()
 
-If you provide a color without an alpha component (0xRRGGBB), the wrapper automatically adds full opacity (0xFF000000).
+; Clear background
+d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
 
-## 4. Basic Drawing Operations
+; Draw shapes
+d2d.fillRectangle(100, 100, 200, 150, 0xFF0000)
+d2d.drawRectangle(350, 100, 200, 150, 0x0000FF, 3)
+d2d.fillCircle(200, 350, 75, 0x00FF00)
+d2d.drawCircle(450, 350, 75, 0xFF00FF, 3)
+d2d.drawLine(100, 500, 700, 500, 0x000000, 5)
 
-### Drawing Primitives
+; Draw text
+d2d.drawText("Hello, Direct2D!", 300, 50, 24, 0x000000, "Arial", "aCenter")
 
-The D2D1 class provides methods for drawing basic shapes:
-
-#### Rectangles
-
-```ahk
-; Fill a rectangle
-d2d.fillRectangle(x, y, width, height, color)
-
-; Draw a rectangle outline
-d2d.drawRectangle(x, y, width, height, color, thickness, rounded)
-
-; Fill a rounded rectangle
-d2d.fillRoundedRectangle(x, y, width, height, radiusX, radiusY, color)
-
-; Draw a rounded rectangle outline
-d2d.drawRoundedRectangle(x, y, width, height, radiusX, radiusY, color, thickness, rounded)
+; End drawing
+d2d.endDraw()
 ```
 
-#### Circles and Ellipses
+### Animation with Events
 
-```ahk
-; Fill a circle
-d2d.fillCircle(x, y, radius, color)
+```autohotkey
+#Include "d2d1.ahk"
 
-; Draw a circle outline
-d2d.drawCircle(x, y, radius, color, thickness, rounded)
+; Create a GUI window
+myGui := Gui(" +Alwaysontop +Resize", "Animation with Events")
+myGui.Show("w800 h600")
 
-; Fill an ellipse
-d2d.fillEllipse(x, y, radiusX, radiusY, color)
+; Initialize D2D1 instance
+d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
 
-; Draw an ellipse outline
-d2d.drawEllipse(x, y, radiusX, radiusY, color, thickness, rounded)
+; Register event handlers
+d2d.events.on("beforeDraw", (*) => OutputDebug("Drawing started"))
+d2d.events.on("afterDraw", (*) => OutputDebug("Drawing completed"))
+d2d.events.on("beforeVSyncChange", (d2d, oldValue, newValue) => 
+    OutputDebug("VSync changing from " (oldValue ? "ON" : "OFF") " to " (newValue ? "ON" : "OFF")))
+
+; Animation variables
+angle := 0
+radius := 150
+
+; Create a drawing function
+drawFunc := AnimationFrame.Bind(d2d)
+
+; Set up animation timer (60 FPS)
+SetTimer(drawFunc, 16)
+
+; Animation function
+AnimationFrame(d2d) {
+    global angle, radius
+    
+    ; Update animation variables
+    angle += 2
+    if (angle >= 360)
+        angle := 0
+    
+    ; Calculate position
+    x := 400 + radius * Cos(angle * 0.0174533)
+    y := 300 + radius * Sin(angle * 0.0174533)
+    
+    ; Begin drawing
+    d2d.beginDraw()
+    
+    ; Clear background
+    d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
+    
+    ; Draw animated circle
+    d2d.fillCircle(x, y, 50, 0x0000FF)
+    
+    ; Draw connecting line
+    d2d.drawLine(400, 300, x, y, 0x000000, 2)
+    
+    ; End drawing
+    d2d.endDraw()
+}
+
+; Toggle VSync every 5 seconds
+SetTimer(() => d2d.setVSync(!d2d.vsync), 5000)
 ```
 
-#### Lines
+### Using Shape Classes and Scene Graph
 
-```ahk
-; Draw a line
-d2d.drawLine(x1, y1, x2, y2, color, thickness, rounded)
-```
+```autohotkey
+#Include "d2d1.ahk"
 
-#### Polygons
+; Create a GUI window
+myGui := Gui(" +Alwaysontop +Resize", "Shape Classes and Scene Graph")
+myGui.Show("w800 h600")
 
-```ahk
-; Fill a polygon
-d2d.fillPolygon(points, color, xOffset, yOffset)
+; Initialize D2D1 instance
+d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
 
-; Draw a polygon outline
-d2d.drawPolygon(points, color, thickness, rounded, xOffset, yOffset)
-```
-
-Where `points` is an array of 2D points, e.g., `[[0,0], [5,0], [0,5]]`.
-
-### Fill vs. Outline Operations
-
-The D2D1 class provides two types of drawing operations:
-
-1. **Fill operations** (`fillRectangle`, `fillCircle`, etc.): Fill the entire shape with a solid color
-2. **Outline operations** (`drawRectangle`, `drawCircle`, etc.): Draw only the outline of the shape
-
-Outline operations take additional parameters:
-- `thickness`: The width of the outline (default: 1)
-- `rounded`: Whether to use rounded caps/joins (default: 0)
-
-### Brush and Stroke Styles
-
-The D2D1 class internally manages brushes and stroke styles:
-
-- **Brushes** define how shapes are filled (color, opacity)
-- **Stroke styles** define how lines are drawn (caps, joins, dash patterns)
-
-The wrapper provides two stroke styles:
-- Regular stroke style (square caps, miter joins)
-- Rounded stroke style (round caps, round joins)
-
-### Transparency and Blending
-
-You can control transparency by setting the alpha component of colors:
-
-```ahk
-; Fully opaque red
-d2d.fillRectangle(10, 10, 100, 100, 0xFFFF0000)
-
-; Semi-transparent blue (50% opacity)
-d2d.fillRectangle(60, 60, 100, 100, 0x800000FF)
-```
-
-Direct2D automatically handles blending when shapes overlap.
-
-## 5. Shape Classes
-
-### Shape Class Hierarchy
-
-The D2D1 wrapper includes a hierarchy of shape classes for object-oriented drawing:
-
-```
-D2D1Shape (Base Class)
-├── D2D1Rectangle
-├── D2D1OutlineRectangle
-├── D2D1RoundedRectangle
-├── D2D1OutlineRoundedRectangle
-├── D2D1Circle
-├── D2D1OutlineCircle
-├── D2D1Line
-├── D2D1Polygon
-├── D2D1OutlinePolygon
-└── D2D1Text
-```
-
-Each shape class inherits from the base `D2D1Shape` class, which provides common properties and methods.
-
-### Available Shape Types
-
-#### Rectangles
-
-```ahk
-; Filled rectangle
-rect := D2D1Rectangle(x, y, width, height, color)
-
-; Outlined rectangle
-outlineRect := D2D1OutlineRectangle(x, y, width, height, color, thickness, rounded)
-
-; Filled rounded rectangle
-roundedRect := D2D1RoundedRectangle(x, y, width, height, radiusX, radiusY, color)
-
-; Outlined rounded rectangle
-outlineRoundedRect := D2D1OutlineRoundedRectangle(x, y, width, height, radiusX, radiusY, color, thickness, rounded)
-```
-
-#### Circles
-
-```ahk
-; Filled circle
-circle := D2D1Circle(x, y, radius, color)
-
-; Outlined circle
-outlineCircle := D2D1OutlineCircle(x, y, radius, color, thickness, rounded)
-```
-
-#### Lines
-
-```ahk
-; Line
-line := D2D1Line(x1, y1, x2, y2, color, thickness, rounded)
-```
-
-#### Polygons
-
-```ahk
-; Filled polygon
-polygon := D2D1Polygon(points, color, xOffset, yOffset)
-
-; Outlined polygon
-outlinePolygon := D2D1OutlinePolygon(points, color, thickness, rounded, xOffset, yOffset)
-```
-
-#### Text
-
-```ahk
-; Text
-text := D2D1Text(text, x, y, width, height, color, fontName, alignment, extraOptions)
-```
-
-### Creating and Manipulating Shapes
-
-To create a shape, instantiate the appropriate class:
-
-```ahk
-; Create a red rectangle
-rect := D2D1Rectangle(50, 50, 100, 100, 0xFF0000)
-```
-
-You can manipulate shapes using their methods:
-
-```ahk
-; Move the rectangle
-rect.move(10, 20)
-
-; Change the color
-rect.setColor(0x00FF00)
-```
-
-To draw a shape, call its `draw` method with a D2D1 instance:
-
-```ahk
-rect.draw(d2d)
-```
-
-### Scene Graph Functionality
-
-The `D2D1Scene` class provides a scene graph for managing multiple shapes:
-
-```ahk
 ; Create a scene
 scene := D2D1Scene()
 
 ; Add shapes to the scene
 scene.addShape(D2D1Rectangle(50, 50, 100, 100, 0xFF0000))
-scene.addShape(D2D1Circle(200, 200, 50, 0x00FF00))
+scene.addShape(D2D1OutlineRectangle(200, 50, 100, 100, 0x0000FF, 3))
+scene.addShape(D2D1RoundedRectangle(350, 50, 100, 100, 10, 10, 0x00FF00))
+scene.addShape(D2D1Circle(100, 200, 50, 0xFF00FF))
+scene.addShape(D2D1OutlineCircle(250, 200, 50, 0x00FFFF, 3))
+scene.addShape(D2D1Line(350, 150, 450, 250, 0x000000, 3))
+scene.addShape(D2D1Polygon([[500, 150], [600, 150], [550, 250]], 0xFFFF00))
+scene.addShape(D2D1Text("Scene Graph", 300, 300, 24, 0x000000, "Arial", "center"))
 
-; Draw all shapes in the scene
+; Draw the scene
 scene.draw(d2d)
 ```
 
-The scene graph automatically handles the drawing cycle (beginDraw/endDraw) and draws all shapes in the order they were added.
+## Conclusion
 
-### Composite Shapes
+The Direct2D wrapper for AutoHotkey v2 provides a powerful yet easy-to-use interface for creating hardware-accelerated 2D graphics. By abstracting away the complexity of the Direct2D API, it allows AutoHotkey developers to create high-performance graphics applications with minimal code.
 
-You can create composite shapes by combining multiple shapes in a scene:
+For more detailed information about specific components, please refer to the following documentation files:
 
-```ahk
-; Create a scene for a composite shape
-face := D2D1Scene()
+- [d2d1Structs_Documentation.md](d2d1Structs_Documentation.md): Documentation for structure definitions
+- [D2D1Enums_Documentation.md](D2D1Enums_Documentation.md): Documentation for enumeration values
 
-; Add shapes to create a face
-face.addShape(D2D1Circle(100, 100, 50, 0xFFFF00))  ; Head
-face.addShape(D2D1Circle(85, 85, 10, 0x000000))    ; Left eye
-face.addShape(D2D1Circle(115, 85, 10, 0x000000))   ; Right eye
-face.addShape(D2D1Circle(100, 110, 20, 0xFF0000))  ; Mouth
+## Attribution
 
-; Draw the composite shape
-face.draw(d2d)
-```
-
-## 6. Text Rendering
-
-### Basic Text Drawing
-
-The D2D1 class provides a `drawText` method for rendering text:
-
-```ahk
-d2d.drawText(text, x, y, fontSize, color, fontName, extraOptions)
-```
-
-Parameters:
-- `text`: The text to draw
-- `x`, `y`: Position of the text
-- `fontSize`: Font size in points
-- `color`: Text color in 0xAARRGGBB format
-- `fontName`: Font family name (default: "Arial")
-- `extraOptions`: Additional formatting options (see below)
-
-### Font Handling and Caching
-
-The D2D1 class includes a font caching system to improve performance. When you specify a font name and size, the wrapper:
-
-1. Checks if the font is already in the cache
-2. If found, uses the cached font
-3. If not found, creates a new font and adds it to the cache
-
-The cache has a maximum size (default: 50 fonts) to prevent memory issues. This caching mechanism significantly improves performance when rendering text repeatedly with the same fonts.
-
-```ahk
-; Font caching is handled automatically
-d2d.drawText("This text uses a cached font", 50, 50, 18, 0x000000, "Arial")
-d2d.drawText("This text also uses the cached font", 50, 80, 18, 0x000000, "Arial")
-```
-
-### Text Formatting Options
-
-The `extraOptions` parameter accepts a string with these options:
-
-- `w[number]`: Width of the text block
-- `h[number]`: Height of the text block
-- `aLeft`, `aCenter`, `aRight`: Text alignment
-- `ds[hex color]`: Drop shadow color
-- `dsx[number]`: Drop shadow X offset
-- `dsy[number]`: Drop shadow Y offset
-- `ol[hex color]`: Outline color
-
-Example:
-
-```ahk
-; Center-aligned text with drop shadow
-d2d.drawText("Hello, World!", 50, 50, 24, 0x000000, "Arial", "w400 h50 aCenter ds808080 dsx2 dsy2")
-```
-
-### Text Effects
-
-#### Drop Shadow
-
-To add a drop shadow to text:
-
-```ahk
-; Using drawText directly
-d2d.drawText("Text with shadow", 50, 50, 18, 0x000000, "Arial", "ds808080 dsx2 dsy2")
-
-; Using D2D1Text class
-text := D2D1Text("Text with shadow", 50, 50, 400, 30, 0x000000, "Arial")
-text.addDropShadow(0x80808080, 2, 2)
-text.draw(d2d)
-```
-
-#### Outline
-
-To add an outline to text:
-
-```ahk
-; Using drawText directly
-d2d.drawText("Text with outline", 50, 100, 18, 0xFF0000, "Arial", "olFF0000")
-
-; Using D2D1Text class
-text := D2D1Text("Text with outline", 50, 100, 400, 30, 0xFF0000, "Arial")
-text.addOutline(0xFF000000)
-text.draw(d2d)
-```
-
-### Text Alignment and Layout
-
-You can control text alignment using the alignment options:
-
-```ahk
-; Left-aligned text (default)
-d2d.drawText("Left aligned", 50, 50, 18, 0x000000, "Arial", "aLeft")
-
-; Center-aligned text
-d2d.drawText("Center aligned", 50, 100, 18, 0x000000, "Arial", "aCenter")
-
-; Right-aligned text
-d2d.drawText("Right aligned", 50, 150, 18, 0x000000, "Arial", "aRight")
-```
-
-When using the D2D1Text class, you can specify the alignment in the constructor:
-
-```ahk
-; Center-aligned text
-text := D2D1Text("Center aligned", 50, 50, 400, 30, 0x000000, "Arial", "center")
-```
-
-## 7. Animation Techniques
-
-### Animation Fundamentals
-
-Animation in Direct2D involves:
-
-1. Updating object properties (position, size, color, etc.)
-2. Redrawing the scene at regular intervals
-3. Using timers to control the frame rate
-
-The basic pattern is:
-
-```ahk
-; Set up animation variables
-angle := 0
-
-; Create a timer for animation
-SetTimer(AnimationFrame.Bind(d2d), 16)  ; ~60 FPS
-
-; Animation function
-AnimationFrame(d2d) {
-    ; Update animation variables
-    global angle
-    angle += 2
-    if (angle >= 360)
-        angle := 0
-    
-    ; Calculate new positions or properties
-    x := 400 + 150 * Cos(angle * 0.0174533)
-    y := 300 + 150 * Sin(angle * 0.0174533)
-    
-    ; Draw the frame
-    d2d.beginDraw()
-    d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
-    d2d.fillCircle(x, y, 50, 0x0000FF)
-    d2d.endDraw()
-}
-```
-
-### Frame-Based Animation
-
-Frame-based animation uses a timer to update the display at regular intervals:
-
-```ahk
-; 60 FPS (16.67ms per frame)
-SetTimer(AnimationFrame.Bind(d2d), 16)
-
-; 30 FPS (33.33ms per frame)
-SetTimer(AnimationFrame.Bind(d2d), 33)
-```
-
-The timer interval controls the frame rate:
-- Smaller interval = higher frame rate = smoother animation but higher CPU usage
-- Larger interval = lower frame rate = choppier animation but lower CPU usage
-
-### Smooth Movement and Transitions
-
-To create smooth movement, use small increments and trigonometric functions:
-
-```ahk
-; Linear movement
-x += speed
-
-; Acceleration/deceleration
-speed += acceleration
-x += speed
-
-; Circular movement
-x := centerX + radius * Cos(angle * 0.0174533)
-y := centerY + radius * Sin(angle * 0.0174533)
-
-; Oscillation
-x := centerX + amplitude * Sin(angle * 0.0174533)
-```
-
-### Color Animations
-
-You can animate colors by changing their components:
-
-```ahk
-; Pulsing opacity
-alpha := 127.5 + 127.5 * Sin(angle * 0.0174533)
-color := (Round(alpha) << 24) | 0x0000FF  ; Blue with changing alpha
-
-; Color cycling (hue rotation)
-r := Round(127.5 + 127.5 * Cos(angle * 0.0174533))
-g := Round(127.5 + 127.5 * Cos((angle + 120) * 0.0174533))
-b := Round(127.5 + 127.5 * Cos((angle + 240) * 0.0174533))
-color := (r << 16) | (g << 8) | b
-```
-
-### Shape Transformations
-
-When using shape classes, you can animate them by changing their properties:
-
-```ahk
-; Move a shape
-shape.move(dx, dy)
-
-; Change a shape's color
-shape.setColor(newColor)
-
-; Resize a circle
-circle._radius += 1
-
-; Rotate polygon points
-for i, point in polygon._points {
-    ; Rotation logic here
-}
-```
-
-## 8. Advanced Features
-
-### VSync Control
-
-Vertical Synchronization (VSync) synchronizes the frame rate with the monitor's refresh rate to prevent screen tearing.
-
-You can control VSync in several ways:
-
-```ahk
-; Enable VSync during initialization (default)
-d2d := D2D1(myGui.hwnd, 100, 100, 800, 600, true)
-
-; Disable VSync during initialization
-d2d := D2D1(myGui.hwnd, 100, 100, 800, 600, false)
-
-; Toggle VSync at runtime
-d2d.setVSync(true)   ; Enable VSync
-d2d.setVSync(false)  ; Disable VSync
-```
-
-When to use VSync:
-- **Enable VSync** for most applications, especially those with animations
-- **Disable VSync** when you need the lowest input latency or for benchmarking
-
-The `setVSync` method works by recreating the render target with the new VSync setting. This is necessary because Direct2D doesn't allow changing present options after creation. The method preserves the current state (like antialiasing settings) when recreating the render target.
-
-### Antialiasing Settings
-
-Antialiasing smooths jagged edges for better visual quality. You can control antialiasing with the `setAntialias` method:
-
-```ahk
-; Enable antialiasing (default)
-d2d.setAntialias(true)
-
-; Disable antialiasing
-d2d.setAntialias(false)
-```
-
-When to use antialiasing:
-- **Enable antialiasing** for most applications to improve visual quality
-- **Disable antialiasing** for pixel-perfect rendering or slightly better performance
-
-### Resource Management
-
-The D2D1 class includes a resource manager that tracks and releases COM objects:
-
-```ahk
-; The resource manager is created automatically
-resourceManager := D2D1ResourceManager()
-
-; Add a resource to the manager
-resourceManager.addResource(name, resource, releaseMethod)
-
-; Release a specific resource
-resourceManager.releaseResource(name)
-
-; Release all resources
-resourceManager.releaseAll()
-```
-
-The resource manager is used internally by the D2D1 class to ensure proper cleanup of Direct2D resources.
-
-### Custom Shapes and Effects
-
-You can create custom shapes by extending the D2D1Shape class:
-
-```ahk
-class MyCustomShape extends D2D1Shape {
-    __New(x, y, color) {
-        super.__New(x, y, color)
-        ; Initialize custom properties
-    }
-    
-    draw(d2d) {
-        ; Custom drawing logic
-        d2d.fillRectangle(this._x, this._y, 50, 50, this._color)
-        d2d.drawCircle(this._x + 25, this._y + 25, 20, 0x000000)
-    }
-}
-```
-
-### Integration with Other Libraries
-
-The D2D1 class can be integrated with other AutoHotkey libraries:
-
-```ahk
-; Integration with GUI controls
-myGui := Gui()
-myButton := myGui.Add("Button", "w100 h30", "Click Me")
-myButton.OnEvent("Click", (*) => {
-    ; Update D2D1 drawing
-})
-
-; Integration with keyboard/mouse input
-OnMessage(0x200, MouseMove)  ; WM_MOUSEMOVE
-MouseMove(wParam, lParam, msg, hwnd) {
-    global mouseX := lParam & 0xFFFF
-    global mouseY := lParam >> 16
-}
-```
-
-## 9. Performance Optimization
-
-### Efficient Drawing Strategies
-
-To optimize performance:
-
-1. **Minimize drawing operations**:
-   ```ahk
-   ; Inefficient (multiple draw calls)
-   d2d.fillRectangle(10, 10, 10, 10, 0xFF0000)
-   d2d.fillRectangle(30, 10, 10, 10, 0xFF0000)
-   
-   ; More efficient (single draw call)
-   d2d.fillRectangle(10, 10, 30, 10, 0xFF0000)
-   ```
-
-2. **Use appropriate shapes**:
-   ```ahk
-   ; Inefficient (complex polygon)
-   d2d.fillPolygon([[0,0], [100,0], [100,100], [0,100]], 0xFF0000)
-   
-   ; More efficient (simple rectangle)
-   d2d.fillRectangle(0, 0, 100, 100, 0xFF0000)
-   ```
-
-3. **Batch similar operations**:
-   ```ahk
-   ; Draw all rectangles first, then all circles
-   for rect in rectangles
-       d2d.fillRectangle(rect.x, rect.y, rect.w, rect.h, rect.color)
-   
-   for circle in circles
-       d2d.fillCircle(circle.x, circle.y, circle.r, circle.color)
-   ```
-
-### Resource Caching
-
-The D2D1 class includes several caching mechanisms:
-
-1. **Color caching**: The `_setBrushColor` method only updates the brush if the color has changed
-2. **Font caching**: The text rendering system caches fonts for reuse
-3. **Shape reuse**: Create shapes once and reuse them instead of recreating them each frame
-
-The font caching system is particularly important for text-heavy applications. It maintains a cache of up to 50 fonts (by default) to avoid the overhead of creating text formats repeatedly.
-
-### Batch Operations
-
-Use the scene graph to batch drawing operations:
-
-```ahk
-; Create a scene
-scene := D2D1Scene()
-
-; Add all shapes to the scene
-for i in range
-    scene.addShape(D2D1Rectangle(i*10, i*10, 10, 10, 0xFF0000))
-
-; Draw all shapes in a single operation
-scene.draw(d2d)
-```
-
-### Memory Usage Considerations
-
-To minimize memory usage:
-
-1. **Limit the number of shapes**: Too many shapes can consume excessive memory
-2. **Release unused resources**: Remove shapes from scenes when no longer needed
-3. **Use appropriate data structures**: Use arrays or maps efficiently
-
-### Debugging and Profiling
-
-To debug performance issues:
-
-1. **Measure frame times**:
-   ```ahk
-   startTime := A_TickCount
-   ; Drawing operations
-   endTime := A_TickCount
-   frameTime := endTime - startTime
-   ```
-
-2. **Identify bottlenecks**:
-   ```ahk
-   ; Measure specific operations
-   startTime := A_TickCount
-   d2d.fillPolygon(complexPolygon, 0xFF0000)
-   polygonTime := A_TickCount - startTime
-   ```
-
-3. **Optimize critical paths**: Focus on optimizing the most time-consuming operations
-
-## 10. API Reference
-
-### D2D1 Class Methods
-
-#### Constructor and Setup
-
-```ahk
-__New(hwnd, x := 100, y := 100, width := 800, height := 600, vsync := true)
-setPosition(x, y, w := 0, h := 0)
-setAntialias(enable := true)
-setVSync(enable := true)
-```
-
-#### Drawing Cycle
-
-```ahk
-beginDraw()
-endDraw()
-clear()
-```
-
-#### Shape Drawing
-
-```ahk
-fillRectangle(x, y, w, h, color)
-drawRectangle(x, y, w, h, color, thickness := 1, rounded := 0)
-fillRoundedRectangle(x, y, w, h, radiusX, radiusY, color)
-drawRoundedRectangle(x, y, w, h, radiusX, radiusY, color, thickness := 1, rounded := 0)
-fillCircle(x, y, radius, color)
-drawCircle(x, y, radius, color, thickness := 1, rounded := 0)
-fillEllipse(x, y, radiusX, radiusY, color)
-drawEllipse(x, y, radiusX, radiusY, color, thickness := 1, rounded := 0)
-drawLine(x1, y1, x2, y2, color := 0xFFFFFFFF, thickness := 1, rounded := 0)
-fillPolygon(points, color, xOffset := 0, yOffset := 0)
-drawPolygon(points, color, thickness := 1, rounded := 0, xOffset := 0, yOffset := 0)
-```
-
-#### Text Drawing
-
-```ahk
-drawText(text, x, y, size := 18, color := 0xFFFFFFFF, fontName := "Arial", extraOptions := "")
-createTextFormat(fontFamily, fontSize, fontWeight := "normal", fontStyle := "normal", formatName := "")
-```
-
-#### Utility Methods
-
-```ahk
-_setBrushColor(color)
-_vTable(object, methodIndex)
-_createGuid(guidStr, &clsidFactory)
-```
-
-### Shape Classes
-
-#### Base Shape Class
-
-```ahk
-D2D1Shape(x, y, color := 0xFFFFFFFF)
-move(dx, dy)
-setColor(color)
-draw(d2d)  ; Abstract method
-```
-
-#### Rectangle Classes
-
-```ahk
-D2D1Rectangle(x, y, width, height, color := 0xFFFFFFFF)
-D2D1OutlineRectangle(x, y, width, height, color := 0xFFFFFFFF, thickness := 1, rounded := 0)
-D2D1RoundedRectangle(x, y, width, height, radiusX, radiusY, color := 0xFFFFFFFF)
-D2D1OutlineRoundedRectangle(x, y, width, height, radiusX, radiusY, color := 0xFFFFFFFF, thickness := 1, rounded := 0)
-```
-
-#### Circle Classes
-
-```ahk
-D2D1Circle(x, y, radius, color := 0xFFFFFFFF)
-D2D1OutlineCircle(x, y, radius, color := 0xFFFFFFFF, thickness := 1, rounded := 0)
-```
-
-#### Line Class
-
-```ahk
-D2D1Line(x1, y1, x2, y2, color := 0xFFFFFFFF, thickness := 1, rounded := 0)
-```
-
-#### Polygon Classes
-
-```ahk
-D2D1Polygon(points, color := 0xFFFFFFFF, xOffset := 0, yOffset := 0)
-D2D1OutlinePolygon(points, color := 0xFFFFFFFF, thickness := 1, rounded := 0, xOffset := 0, yOffset := 0)
-```
-
-#### Text Class
-
-```ahk
-D2D1Text(text, x, y, width, height, color := 0xFF000000, fontName := "Arial", alignment := "left", extraOptions := "")
-setText(text)
-setFontSize(size)
-setFontName(fontName)
-setAlignment(alignment)
-addDropShadow(color, xOffset := 1, yOffset := 1)
-addOutline(color)
-```
-
-#### Scene Graph
-
-```ahk
-D2D1Scene()
-addShape(shape)
-removeShape(index)
-draw(d2d)
-```
-
-### Resource Manager
-
-```ahk
-D2D1ResourceManager()
-addResource(name, resource, releaseMethod)
-getResource(name)
-releaseResource(name)
-releaseAll()
-```
-
-### Structure Definitions
-
-The `D2D1Structs` class provides static methods for creating Direct2D structures:
-
-```ahk
-D2D1Structs._MARGINS(cxLeftWidth := -1, cxRightWidth := -1, cyTopHeight := -1, cyBottomHeight := -1)
-D2D1Structs.D2D_POINT_2F(x1, y1, x2, y2)
-D2D1Structs.gdiplusStartupInput(GdiplusVersion := 1)
-D2D1Structs.D2D1_RENDER_TARGET_PROPERTIES(...)
-D2D1Structs.D2D1_HWND_RENDER_TARGET_PROPERTIES(...)
-D2D1Structs.D2D1_MATRIX_3X2_F(...)
-D2D1Structs.D2D1_STROKE_STYLE_PROPERTIES(...)
-D2D1Structs.D2D_RECT_F(left := 0, top := 0, right := 0, bottom := 0)
-```
-
-### Constants and Enumerations
-
-```ahk
-; Render target types
-D2D1_RENDER_TARGET_TYPE_DEFAULT := 0
-D2D1_RENDER_TARGET_TYPE_SOFTWARE := 1
-D2D1_RENDER_TARGET_TYPE_HARDWARE := 2
-
-; Alpha modes
-D2D1_ALPHA_MODE_UNKNOWN := 0
-D2D1_ALPHA_MODE_PREMULTIPLIED := 1
-D2D1_ALPHA_MODE_STRAIGHT := 2
-D2D1_ALPHA_MODE_IGNORE := 3
-
-; Present options
-D2D1_PRESENT_OPTIONS_NONE := 0  ; VSync enabled
-D2D1_PRESENT_OPTIONS_IMMEDIATELY := 2  ; VSync disabled
-
-; Antialiasing modes
-D2D1_ANTIALIAS_MODE_PER_PRIMITIVE := 0
-D2D1_ANTIALIAS_MODE_ALIASED := 1
-```
-
-### Error Handling
-
-The D2D1 class uses exceptions for error handling:
-
-```ahk
-try {
-    d2d := D2D1(myGui.hwnd, 100, 100, 800, 600)
-} catch as e {
-    MsgBox("Failed to initialize Direct2D: " e.Message)
-    ExitApp
-}
-```
-
-Common exceptions:
-- Failed to create Direct2D factory
-- Failed to create render target
-- Failed to create brush
-- Failed to create stroke object
-- Invalid shape dimensions
-
-## 11. Planned Features
-
-The following features are planned for future releases:
-
-### Image Drawing
-
-Support for loading and rendering images from files is planned for a future update. This will include:
-
-- Loading images from various file formats (PNG, JPEG, etc.)
-- Rendering images with scaling and positioning options
-- Support for transparency and blending
-- Potential support for image transformations (rotation, skewing, etc.)
-
-The API will likely include methods such as:
-
-```ahk
-; Load an image from a file
-image := d2d.loadImage(filePath)
-
-; Draw an image
-d2d.drawImage(image, x, y, width, height)
-
-; Draw a portion of an image
-d2d.drawImageRect(image, destX, destY, destWidth, destHeight, sourceX, sourceY, sourceWidth, sourceHeight)
-```
-
-### Bitmap Effects
-
-Future versions may include support for bitmap effects, such as:
-
-- Blur and other filters
-- Color adjustments
-- Masking and clipping
-
-### Additional Shape Types
-
-Additional shape types may be added in future releases, such as:
-
-- Bezier curves
-- Arcs and pie segments
-- Stars and regular polygons
-- Path-based shapes with complex geometry
-
-Stay tuned for updates on these planned features.
+This library is based on Spawnova's Direct2D overlay class, which can be found at: https://github.com/Spawnova/ShinsOverlayClass

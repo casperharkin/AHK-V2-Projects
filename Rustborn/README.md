@@ -1,6 +1,6 @@
 # Rustborn
 
-![Rustborn Logo](https://placeholder.com/rustborn-logo.png)
+![Rustborn Logo](Logo.webp)
 
 A turn-based robot battle game set in an alien wasteland, developed in AutoHotkey v2.0 with Direct2D rendering.
 
@@ -8,7 +8,8 @@ A turn-based robot battle game set in an alien wasteland, developed in AutoHotke
 
 Rustborn is a tactical RPG where you control a customizable robot in a post-apocalyptic alien environment. Battle against increasingly powerful opponents, salvage their parts to upgrade your robot, and uncover the secrets of the wasteland.
 
-![Game Screenshot](https://placeholder.com/rustborn-screenshot.png)
+<!-- Screenshot will be added once available -->
+<!-- ![Game Screenshot](screenshot.png) -->
 
 ## ✨ Features
 

@@ -11,16 +11,19 @@ class BattleManager {
     battleEnded := false
     winner := ""
     
-    ; Special ability selection
+    ; Menu selection
     showingSpecialMenu := false
+    showingItemMenu := false
     selectedSpecial := 1
+    selectedItem := 1
     availableSpecials := []
     
     ; Constructor
-    __New(playerRobot, enemyRobot) {
+    __New(playerRobot, enemyRobot, game := "") {
         OutputDebug("BattleManager constructor called")
         this.playerRobot := playerRobot
         this.enemyRobot := enemyRobot
+        this.game := game  ; Store reference to game object
         this.isPlayerTurn := true
         this.battleLog := ["Battle started!"]
         this.battleEnded := false
@@ -189,9 +192,43 @@ class BattleManager {
                 this.showingSpecialMenu := true
                 return  ; Don't end turn when showing menu
             }
-        } else if (this.selectedAction = 4) {  ; Item (not implemented yet)
-            this.addToBattleLog("No items available")
-            return  ; Don't end turn if action not available
+        } else if (this.selectedAction = 4) {  ; Item
+            if (this.showingItemMenu) {
+                ; Use selected item
+                if (this.game && this.game.itemInventory && this.game.itemInventory.Length > 0) {
+                    if (this.selectedItem <= this.game.itemInventory.Length) {
+                        item := this.game.itemInventory[this.selectedItem]
+                        
+                        ; Use the item
+                        if (this.game.itemSystem) {
+                            result := this.game.itemSystem.useItem(this.game, item.name)
+                            
+                            if (result.success) {
+                                this.addToBattleLog(result.message)
+                            } else {
+                                this.addToBattleLog("Failed to use " item.name)
+                                return  ; Don't end turn if item use failed
+                            }
+                        } else {
+                            this.addToBattleLog("Item system not available")
+                            return  ; Don't end turn if item system not available
+                        }
+                    }
+                }
+                
+                ; Hide item menu after using item
+                this.showingItemMenu := false
+            } else {
+                ; Show item menu if there are items
+                if (this.game && this.game.itemInventory && this.game.itemInventory.Length > 0) {
+                    this.showingItemMenu := true
+                    this.selectedItem := 1
+                    return  ; Don't end turn when showing menu
+                } else {
+                    this.addToBattleLog("No items available")
+                    return  ; Don't end turn if no items
+                }
+            }
         }
         
         ; Check if battle ended
@@ -340,6 +377,12 @@ class BattleManager {
                 this.selectedSpecial--
                 OutputDebug("selectedSpecial changed to " this.selectedSpecial)
             }
+        } else if (this.showingItemMenu) {
+            ; Navigate item menu
+            if (this.selectedItem > 1) {
+                this.selectedItem--
+                OutputDebug("selectedItem changed to " this.selectedItem)
+            }
         } else {
             ; Navigate main menu
             if (this.selectedAction > 1) {
@@ -357,6 +400,12 @@ class BattleManager {
                 this.selectedSpecial++
                 OutputDebug("selectedSpecial changed to " this.selectedSpecial)
             }
+        } else if (this.showingItemMenu) {
+            ; Navigate item menu
+            if (this.game && this.game.itemInventory && this.selectedItem < this.game.itemInventory.Length) {
+                this.selectedItem++
+                OutputDebug("selectedItem changed to " this.selectedItem)
+            }
         } else {
             ; Navigate main menu
             if (this.selectedAction < 4) {
@@ -370,6 +419,13 @@ class BattleManager {
     cancelSpecialMenu() {
         if (this.showingSpecialMenu) {
             this.showingSpecialMenu := false
+        }
+    }
+    
+    ; Cancel item menu
+    cancelItemMenu() {
+        if (this.showingItemMenu) {
+            this.showingItemMenu := false
         }
     }
 }

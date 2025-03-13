@@ -16,6 +16,9 @@ The shape classes in `d2d1Shapes.ahk` follow an object-oriented design with inhe
 - **Color Management**: Easy color setting for all shapes
 - **Specialized Classes**: Dedicated classes for different shape types
 - **Text Support**: Advanced text rendering with formatting options
+- **Transformation Support**: Rotation, scaling, and translation of shapes
+- **Visibility Control**: Show or hide shapes without removing them
+- **Method Chaining**: Fluent interface for concise code
 
 ## Class Hierarchy
 
@@ -32,7 +35,12 @@ d2d1Shapes (Base class)
 ├── D2D1Line
 ├── D2D1Polygon
 ├── D2D1OutlinePolygon
-└── D2D1Text
+├── D2D1Text
+├── D2D1Triangle
+├── D2D1OutlineTriangle
+├── D2D1Ellipse
+├── D2D1OutlineEllipse
+└── D2D1Arc
 ```
 
 ## Base Class: d2d1Shapes
@@ -44,6 +52,8 @@ The `d2d1Shapes` class is the base class for all shape classes. It provides comm
 - **_x**: X coordinate of the shape
 - **_y**: Y coordinate of the shape
 - **_color**: Color of the shape in 0xAARRGGBB or 0xRRGGBB format
+- **_transform**: Transformation matrix for the shape
+- **_visible**: Whether the shape is visible
 
 ### Constructor
 
@@ -89,6 +99,9 @@ Move the shape.
 - `dx` (Number): X offset
 - `dy` (Number): Y offset
 
+**Returns**:
+- The shape object for method chaining
+
 **Technical Details**:
 - Adds the specified offsets to the current position
 - This method is inherited by all derived classes
@@ -104,9 +117,142 @@ Set the shape color.
 **Parameters**:
 - `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
 
+**Returns**:
+- The shape object for method chaining
+
 **Technical Details**:
 - Updates the color property
 - This method is inherited by all derived classes
+
+#### setPosition
+
+```autohotkey
+setPosition(x, y)
+```
+
+Set the shape position.
+
+**Parameters**:
+- `x` (Number): X coordinate
+- `y` (Number): Y coordinate
+
+**Returns**:
+- The shape object for method chaining
+
+**Technical Details**:
+- Sets the absolute position of the shape
+- This method is inherited by all derived classes
+
+#### setVisible
+
+```autohotkey
+setVisible(visible)
+```
+
+Set the shape visibility.
+
+**Parameters**:
+- `visible` (Boolean): Whether the shape is visible
+
+**Returns**:
+- The shape object for method chaining
+
+**Technical Details**:
+- Controls whether the shape is drawn
+- This method is inherited by all derived classes
+
+#### rotate
+
+```autohotkey
+rotate(angle, centerX := 0, centerY := 0)
+```
+
+Rotate the shape.
+
+**Parameters**:
+- `angle` (Number): Rotation angle in degrees
+- `centerX` (Number): X center of rotation (default: shape center)
+- `centerY` (Number): Y center of rotation (default: shape center)
+
+**Returns**:
+- The shape object for method chaining
+
+**Technical Details**:
+- Creates a rotation transformation matrix
+- If centerX and centerY are 0, uses the shape's position as the center of rotation
+- This method is inherited by all derived classes
+
+#### scale
+
+```autohotkey
+scale(scaleX, scaleY := 0, centerX := 0, centerY := 0)
+```
+
+Scale the shape.
+
+**Parameters**:
+- `scaleX` (Number): X scale factor
+- `scaleY` (Number): Y scale factor (default: same as scaleX)
+- `centerX` (Number): X center of scaling (default: shape center)
+- `centerY` (Number): Y center of scaling (default: shape center)
+
+**Returns**:
+- The shape object for method chaining
+
+**Technical Details**:
+- Creates a scaling transformation matrix
+- If scaleY is 0, uses scaleX for uniform scaling
+- If centerX and centerY are 0, uses the shape's position as the center of scaling
+- This method is inherited by all derived classes
+
+#### translate
+
+```autohotkey
+translate(dx, dy)
+```
+
+Translate the shape.
+
+**Parameters**:
+- `dx` (Number): X translation
+- `dy` (Number): Y translation
+
+**Returns**:
+- The shape object for method chaining
+
+**Technical Details**:
+- Creates a translation transformation matrix
+- This method is inherited by all derived classes
+
+#### resetTransform
+
+```autohotkey
+resetTransform()
+```
+
+Reset the shape transformation.
+
+**Returns**:
+- The shape object for method chaining
+
+**Technical Details**:
+- Clears any transformation applied to the shape
+- This method is inherited by all derived classes
+
+#### clone
+
+```autohotkey
+clone()
+```
+
+Clone the shape.
+
+**Returns**:
+- A new shape with the same properties
+
+**Technical Details**:
+- This is a placeholder method that should be implemented by derived classes
+- Each derived class will implement this method to create a copy of itself
 
 ## Rectangle Classes
 
@@ -150,8 +296,44 @@ Draw the rectangle.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.fillRectangle()` to draw a filled rectangle
 - Uses the shape's position, dimensions, and color
+- Restores the original transformation if needed
+
+##### setSize
+
+```autohotkey
+setSize(width, height)
+```
+
+Set the rectangle size.
+
+**Parameters**:
+- `width` (Number): Width
+- `height` (Number): Height
+
+**Returns**:
+- The rectangle object for method chaining
+
+**Technical Details**:
+- Updates the width and height properties
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the rectangle.
+
+**Returns**:
+- A new rectangle with the same properties
+
+**Technical Details**:
+- Creates a new rectangle with the same properties
+- Copies transformation and visibility settings
 
 ### D2D1OutlineRectangle
 
@@ -198,8 +380,78 @@ Draw the rectangle outline.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.drawRectangle()` to draw a rectangle outline
 - Uses the shape's position, dimensions, color, thickness, and rounded properties
+- Restores the original transformation if needed
+
+##### setSize
+
+```autohotkey
+setSize(width, height)
+```
+
+Set the rectangle size.
+
+**Parameters**:
+- `width` (Number): Width
+- `height` (Number): Height
+
+**Returns**:
+- The rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the width and height properties
+
+##### setThickness
+
+```autohotkey
+setThickness(thickness)
+```
+
+Set the line thickness.
+
+**Parameters**:
+- `thickness` (Number): Line thickness
+
+**Returns**:
+- The rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the thickness property
+
+##### setRounded
+
+```autohotkey
+setRounded(rounded)
+```
+
+Set whether to use rounded caps.
+
+**Parameters**:
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Returns**:
+- The rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the rounded property
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the rectangle outline.
+
+**Returns**:
+- A new rectangle outline with the same properties
+
+**Technical Details**:
+- Creates a new rectangle outline with the same properties
+- Copies transformation and visibility settings
 
 ### D2D1RoundedRectangle
 
@@ -245,8 +497,62 @@ Draw the rounded rectangle.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.fillRoundedRectangle()` to draw a filled rounded rectangle
 - Uses the shape's position, dimensions, corner radii, and color
+- Restores the original transformation if needed
+
+##### setSize
+
+```autohotkey
+setSize(width, height)
+```
+
+Set the rectangle size.
+
+**Parameters**:
+- `width` (Number): Width
+- `height` (Number): Height
+
+**Returns**:
+- The rounded rectangle object for method chaining
+
+**Technical Details**:
+- Updates the width and height properties
+
+##### setRadius
+
+```autohotkey
+setRadius(radiusX, radiusY)
+```
+
+Set the corner radius.
+
+**Parameters**:
+- `radiusX` (Number): X radius of the rounded corners
+- `radiusY` (Number): Y radius of the rounded corners
+
+**Returns**:
+- The rounded rectangle object for method chaining
+
+**Technical Details**:
+- Updates the radiusX and radiusY properties
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the rounded rectangle.
+
+**Returns**:
+- A new rounded rectangle with the same properties
+
+**Technical Details**:
+- Creates a new rounded rectangle with the same properties
+- Copies transformation and visibility settings
 
 ### D2D1OutlineRoundedRectangle
 
@@ -297,8 +603,96 @@ Draw the rounded rectangle outline.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.drawRoundedRectangle()` to draw a rounded rectangle outline
 - Uses the shape's position, dimensions, corner radii, color, thickness, and rounded properties
+- Restores the original transformation if needed
+
+##### setSize
+
+```autohotkey
+setSize(width, height)
+```
+
+Set the rectangle size.
+
+**Parameters**:
+- `width` (Number): Width
+- `height` (Number): Height
+
+**Returns**:
+- The rounded rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the width and height properties
+
+##### setRadius
+
+```autohotkey
+setRadius(radiusX, radiusY)
+```
+
+Set the corner radius.
+
+**Parameters**:
+- `radiusX` (Number): X radius of the rounded corners
+- `radiusY` (Number): Y radius of the rounded corners
+
+**Returns**:
+- The rounded rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the radiusX and radiusY properties
+
+##### setThickness
+
+```autohotkey
+setThickness(thickness)
+```
+
+Set the line thickness.
+
+**Parameters**:
+- `thickness` (Number): Line thickness
+
+**Returns**:
+- The rounded rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the thickness property
+
+##### setRounded
+
+```autohotkey
+setRounded(rounded)
+```
+
+Set whether to use rounded caps.
+
+**Parameters**:
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Returns**:
+- The rounded rectangle outline object for method chaining
+
+**Technical Details**:
+- Updates the rounded property
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the rounded rectangle outline.
+
+**Returns**:
+- A new rounded rectangle outline with the same properties
+
+**Technical Details**:
+- Creates a new rounded rectangle outline with the same properties
+- Copies transformation and visibility settings
 
 ## Circle Classes
 
@@ -340,8 +734,43 @@ Draw the circle.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.fillCircle()` to draw a filled circle
 - Uses the shape's position, radius, and color
+- Restores the original transformation if needed
+
+##### setRadius
+
+```autohotkey
+setRadius(radius)
+```
+
+Set the radius.
+
+**Parameters**:
+- `radius` (Number): Radius
+
+**Returns**:
+- The circle object for method chaining
+
+**Technical Details**:
+- Updates the radius property
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the circle.
+
+**Returns**:
+- A new circle with the same properties
+
+**Technical Details**:
+- Creates a new circle with the same properties
+- Copies transformation and visibility settings
 
 ### D2D1OutlineCircle
 
@@ -386,8 +815,77 @@ Draw the circle outline.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.drawCircle()` to draw a circle outline
 - Uses the shape's position, radius, color, thickness, and rounded properties
+- Restores the original transformation if needed
+
+##### setRadius
+
+```autohotkey
+setRadius(radius)
+```
+
+Set the radius.
+
+**Parameters**:
+- `radius` (Number): Radius
+
+**Returns**:
+- The circle outline object for method chaining
+
+**Technical Details**:
+- Updates the radius property
+
+##### setThickness
+
+```autohotkey
+setThickness(thickness)
+```
+
+Set the line thickness.
+
+**Parameters**:
+- `thickness` (Number): Line thickness
+
+**Returns**:
+- The circle outline object for method chaining
+
+**Technical Details**:
+- Updates the thickness property
+
+##### setRounded
+
+```autohotkey
+setRounded(rounded)
+```
+
+Set whether to use rounded caps.
+
+**Parameters**:
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Returns**:
+- The circle outline object for method chaining
+
+**Technical Details**:
+- Updates the rounded property
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the circle outline.
+
+**Returns**:
+- A new circle outline with the same properties
+
+**Technical Details**:
+- Creates a new circle outline with the same properties
+- Copies transformation and visibility settings
 
 ## Line Class
 
@@ -436,8 +934,78 @@ Draw the line.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.drawLine()` to draw a line
 - Uses the shape's start and end coordinates, color, thickness, and rounded properties
+- Restores the original transformation if needed
+
+##### setEndPoint
+
+```autohotkey
+setEndPoint(x2, y2)
+```
+
+Set the end point.
+
+**Parameters**:
+- `x2` (Number): End X coordinate
+- `y2` (Number): End Y coordinate
+
+**Returns**:
+- The line object for method chaining
+
+**Technical Details**:
+- Updates the end point coordinates
+
+##### setThickness
+
+```autohotkey
+setThickness(thickness)
+```
+
+Set the line thickness.
+
+**Parameters**:
+- `thickness` (Number): Line thickness
+
+**Returns**:
+- The line object for method chaining
+
+**Technical Details**:
+- Updates the thickness property
+
+##### setRounded
+
+```autohotkey
+setRounded(rounded)
+```
+
+Set whether to use rounded caps.
+
+**Parameters**:
+- `rounded` (Boolean): Whether to use rounded caps
+
+**Returns**:
+- The line object for method chaining
+
+**Technical Details**:
+- Updates the rounded property
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the line.
+
+**Returns**:
+- A new line with the same properties
+
+**Technical Details**:
+- Creates a new line with the same properties
+- Copies transformation and visibility settings
 
 ## Polygon Classes
 
@@ -482,8 +1050,79 @@ Draw the polygon.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.fillPolygon()` to draw a filled polygon
 - Uses the shape's points, color, and offsets
+- Restores the original transformation if needed
+
+##### setPoints
+
+```autohotkey
+setPoints(points)
+```
+
+Set the points.
+
+**Parameters**:
+- `points` (Array): Array of 2D points, e.g. [[0,0],[5,0],[0,5]]
+
+**Returns**:
+- The polygon object for method chaining
+
+**Technical Details**:
+- Updates the points array
+
+##### setOffset
+
+```autohotkey
+setOffset(xOffset, yOffset)
+```
+
+Set the offset.
+
+**Parameters**:
+- `xOffset` (Number): X offset
+- `yOffset` (Number): Y offset
+
+**Returns**:
+- The polygon object for method chaining
+
+**Technical Details**:
+- Updates the offset properties
+
+##### addPoint
+
+```autohotkey
+addPoint(x, y)
+```
+
+Add a point to the polygon.
+
+**Parameters**:
+- `x` (Number): X coordinate
+- `y` (Number): Y coordinate
+
+**Returns**:
+- The polygon object for method chaining
+
+**Technical Details**:
+- Adds a new point to the points array
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the polygon.
+
+**Returns**:
+- A new polygon with the same properties
+
+**Technical Details**:
+- Creates a new polygon with a copy of the points array
+- Copies transformation and visibility settings
 
 ### D2D1OutlinePolygon
 
@@ -531,8 +1170,113 @@ Draw the polygon outline.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.drawPolygon()` to draw a polygon outline
 - Uses the shape's points, color, thickness, rounded property, and offsets
+- Restores the original transformation if needed
+
+##### setPoints
+
+```autohotkey
+setPoints(points)
+```
+
+Set the points.
+
+**Parameters**:
+- `points` (Array): Array of 2D points, e.g. [[0,0],[5,0],[0,5]]
+
+**Returns**:
+- The polygon outline object for method chaining
+
+**Technical Details**:
+- Updates the points array
+
+##### setThickness
+
+```autohotkey
+setThickness(thickness)
+```
+
+Set the line thickness.
+
+**Parameters**:
+- `thickness` (Number): Line thickness
+
+**Returns**:
+- The polygon outline object for method chaining
+
+**Technical Details**:
+- Updates the thickness property
+
+##### setRounded
+
+```autohotkey
+setRounded(rounded)
+```
+
+Set whether to use rounded corners.
+
+**Parameters**:
+- `rounded` (Boolean): Whether to use rounded corners
+
+**Returns**:
+- The polygon outline object for method chaining
+
+**Technical Details**:
+- Updates the rounded property
+
+##### setOffset
+
+```autohotkey
+setOffset(xOffset, yOffset)
+```
+
+Set the offset.
+
+**Parameters**:
+- `xOffset` (Number): X offset
+- `yOffset` (Number): Y offset
+
+**Returns**:
+- The polygon outline object for method chaining
+
+**Technical Details**:
+- Updates the offset properties
+
+##### addPoint
+
+```autohotkey
+addPoint(x, y)
+```
+
+Add a point to the polygon.
+
+**Parameters**:
+- `x` (Number): X coordinate
+- `y` (Number): Y coordinate
+
+**Returns**:
+- The polygon outline object for method chaining
+
+**Technical Details**:
+- Adds a new point to the points array
+
+##### clone
+
+```autohotkey
+clone()
+```
+
+Clone the polygon outline.
+
+**Returns**:
+- A new polygon outline with the same properties
+
+**Technical Details**:
+- Creates a new polygon outline with a copy of the points array
+- Copies transformation and visibility settings
 
 ## Text Class
 
@@ -585,8 +1329,11 @@ Draw the text.
 - `d2d` (D2D1): D2D1 instance
 
 **Technical Details**:
+- Checks if the shape is visible
+- Applies any transformation if set
 - Calls `d2d.drawText()` to draw text
 - Uses the shape's text content, position, font size, color, font name, and extra options
+- Restores the original transformation if needed
 
 ##### setText
 
@@ -598,6 +1345,9 @@ Set the text content.
 
 **Parameters**:
 - `text` (String): New text content
+
+**Returns**:
+- The text object for method chaining
 
 **Technical Details**:
 - Updates the text property
@@ -613,6 +1363,9 @@ Set the font size.
 **Parameters**:
 - `size` (Number): Font size
 
+**Returns**:
+- The text object for method chaining
+
 **Technical Details**:
 - Updates the font size property
 
@@ -627,6 +1380,9 @@ Set the font name.
 **Parameters**:
 - `fontName` (String): Font name
 
+**Returns**:
+- The text object for method chaining
+
 **Technical Details**:
 - Updates the font name property
 
@@ -640,6 +1396,9 @@ Set the text alignment.
 
 **Parameters**:
 - `alignment` (String): Text alignment ("left", "center", "right")
+
+**Returns**:
+- The text object for method chaining
 
 **Technical Details**:
 - Removes existing alignment options from the extra options string
@@ -658,6 +1417,9 @@ Add drop shadow effect.
 - `xOffset` (Number): X offset
 - `yOffset` (Number): Y offset
 
+**Returns**:
+- The text object for method chaining
+
 **Technical Details**:
 - Removes existing shadow options from the extra options string
 - Adds the new shadow options to the extra options string
@@ -673,247 +1435,87 @@ Add outline effect.
 **Parameters**:
 - `color` (Integer): Outline color in 0xAARRGGBB or 0xRRGGBB format
 
+**Returns**:
+- The text object for method chaining
+
 **Technical Details**:
 - Removes existing outline options from the extra options string
 - Adds the new outline option to the extra options string
 
-## Usage Examples
-
-### Basic Shapes
+##### setSize
 
 ```autohotkey
-#Include "d2d1.ahk"
-
-; Create a GUI window
-myGui := Gui(" +Alwaysontop +Resize", "Basic Shapes")
-myGui.Show("w800 h600")
-
-; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
-
-; Create shapes
-rect := D2D1Rectangle(50, 50, 100, 100, 0xFF0000)
-outlineRect := D2D1OutlineRectangle(200, 50, 100, 100, 0x0000FF, 3)
-roundedRect := D2D1RoundedRectangle(350, 50, 100, 100, 10, 10, 0x00FF00)
-circle := D2D1Circle(100, 200, 50, 0xFF00FF)
-outlineCircle := D2D1OutlineCircle(250, 200, 50, 0x00FFFF, 3)
-line := D2D1Line(350, 150, 450, 250, 0x000000, 3)
-
-; Begin drawing
-d2d.beginDraw()
-
-; Clear background
-d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
-
-; Draw shapes
-rect.draw(d2d)
-outlineRect.draw(d2d)
-roundedRect.draw(d2d)
-circle.draw(d2d)
-outlineCircle.draw(d2d)
-line.draw(d2d)
-
-; End drawing
-d2d.endDraw()
+setSize(width, height)
 ```
 
-### Polygons
+Set the text size.
+
+**Parameters**:
+- `width` (Number): Width
+- `height` (Number): Height
+
+**Returns**:
+- The text object for method chaining
+
+**Technical Details**:
+- Updates the width and height properties
+- Updates the width and height in the extra options string
+
+##### clone
 
 ```autohotkey
-#Include "d2d1.ahk"
-
-; Create a GUI window
-myGui := Gui(" +Alwaysontop +Resize", "Polygons")
-myGui.Show("w800 h600")
-
-; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
-
-; Create polygons
-triangle := D2D1Polygon([[100, 100], [200, 100], [150, 200]], 0xFF0000)
-outlineTriangle := D2D1OutlinePolygon([[300, 100], [400, 100], [350, 200]], 0x0000FF, 3)
-
-; Begin drawing
-d2d.beginDraw()
-
-; Clear background
-d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
-
-; Draw polygons
-triangle.draw(d2d)
-outlineTriangle.draw(d2d)
-
-; End drawing
-d2d.endDraw()
+clone()
 ```
 
-### Text with Effects
+Clone the text.
+
+**Returns**:
+- A new text with the same properties
+
+**Technical Details**:
+- Creates a new text with the same properties
+- Copies transformation and visibility settings
+
+## Triangle Classes
+
+### D2D1Triangle
+
+The `D2D1Triangle` class represents a filled triangle.
+
+#### Properties
+
+- **_x2**: Second point X coordinate
+- **_y2**: Second point Y coordinate
+- **_x3**: Third point X coordinate
+- **_y3**: Third point Y coordinate
+
+#### Constructor
 
 ```autohotkey
-#Include "d2d1.ahk"
-
-; Create a GUI window
-myGui := Gui(" +Alwaysontop +Resize", "Text with Effects")
-myGui.Show("w800 h600")
-
-; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
-
-; Create text objects
-title := D2D1Text("Direct2D Text", 50, 50, 700, 50, 0x000000, "Arial", "center")
-title.setFontSize(24)
-
-subtitle := D2D1Text("With Effects", 50, 100, 700, 50, 0x0000FF, "Arial", "center")
-subtitle.setFontSize(18)
-subtitle.addDropShadow(0x80000000, 2, 2)
-
-outlineText := D2D1Text("Outlined Text", 50, 150, 700, 50, 0xFF0000, "Arial", "center")
-outlineText.setFontSize(18)
-outlineText.addOutline(0x000000)
-
-; Begin drawing
-d2d.beginDraw()
-
-; Clear background
-d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
-
-; Draw text
-title.draw(d2d)
-subtitle.draw(d2d)
-outlineText.draw(d2d)
-
-; End drawing
-d2d.endDraw()
+__New(x1, y1, x2, y2, x3, y3, color := 0xFFFFFFFF)
 ```
 
-### Using Scene Graph
+**Parameters**:
+- `x1` (Number): First point X coordinate
+- `y1` (Number): First point Y coordinate
+- `x2` (Number): Second point X coordinate
+- `y2` (Number): Second point Y coordinate
+- `x3` (Number): Third point X coordinate
+- `y3` (Number): Third point Y coordinate
+- `color` (Integer): Color in 0xAARRGGBB or 0xRRGGBB format
+
+**Technical Details**:
+- Calls the base class constructor to initialize common properties (x1, y1)
+- Initializes triangle-specific properties (x2, y2, x3, y3)
+
+#### Methods
+
+##### draw
 
 ```autohotkey
-#Include "d2d1.ahk"
-
-; Create a GUI window
-myGui := Gui(" +Alwaysontop +Resize", "Scene Graph")
-myGui.Show("w800 h600")
-
-; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
-
-; Create a scene
-scene := D2D1Scene()
-
-; Add shapes to the scene
-scene.addShape(D2D1Rectangle(50, 50, 100, 100, 0xFF0000))
-scene.addShape(D2D1OutlineRectangle(200, 50, 100, 100, 0x0000FF, 3))
-scene.addShape(D2D1RoundedRectangle(350, 50, 100, 100, 10, 10, 0x00FF00))
-scene.addShape(D2D1Circle(100, 200, 50, 0xFF00FF))
-scene.addShape(D2D1OutlineCircle(250, 200, 50, 0x00FFFF, 3))
-scene.addShape(D2D1Line(350, 150, 450, 250, 0x000000, 3))
-scene.addShape(D2D1Polygon([[500, 150], [600, 150], [550, 250]], 0xFFFF00))
-scene.addShape(D2D1Text("Scene Graph", 300, 300, 200, 50, 0x000000, "Arial", "center"))
-
-; Begin drawing
-d2d.beginDraw()
-
-; Clear background
-d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
-
-; Draw the scene
-scene.draw(d2d)
-
-; End drawing
-d2d.endDraw()
+draw(d2d)
 ```
 
-### Animation with Shapes
+Draw the triangle.
 
-```autohotkey
-#Include "d2d1.ahk"
-
-; Create a GUI window
-myGui := Gui(" +Alwaysontop +Resize", "Animation with Shapes")
-myGui.Show("w800 h600")
-
-; Initialize D2D1 instance
-d2d := D2D1(myGui.hwnd, 0, 0, 800, 600)
-
-; Create shapes
-circle := D2D1Circle(400, 300, 50, 0x0000FF)
-line := D2D1Line(400, 300, 400, 300, 0x000000, 2)
-
-; Animation variables
-angle := 0
-radius := 150
-
-; Create a drawing function
-drawFunc := AnimationFrame.Bind(d2d, circle, line)
-
-; Set up animation timer (60 FPS)
-SetTimer(drawFunc, 16)
-
-; Animation function
-AnimationFrame(d2d, circle, line) {
-    static angle := 0
-    
-    ; Update animation variables
-    angle += 2
-    if (angle >= 360)
-        angle := 0
-    
-    ; Calculate position
-    x := 400 + 150 * Cos(angle * 0.0174533)
-    y := 300 + 150 * Sin(angle * 0.0174533)
-    
-    ; Update shape positions
-    circle._x := x
-    circle._y := y
-    line._x2 := x
-    line._y2 := y
-    
-    ; Begin drawing
-    d2d.beginDraw()
-    
-    ; Clear background
-    d2d.fillRectangle(0, 0, 800, 600, 0xFFFFFF)
-    
-    ; Draw center point
-    d2d.fillCircle(400, 300, 5, 0x000000)
-    
-    ; Draw shapes
-    line.draw(d2d)
-    circle.draw(d2d)
-    
-    ; End drawing
-    d2d.endDraw()
-}
-```
-
-## Technical Reference
-
-### Implementation Details
-
-The shape classes are implemented using AutoHotkey v2's class system, which supports inheritance and method overriding. Each shape class inherits from the base `d2d1Shapes` class and overrides the `draw` method to implement its specific drawing behavior.
-
-### Memory Management
-
-Shape objects are managed by AutoHotkey's garbage collector. When a shape is no longer referenced, it will be automatically cleaned up. However, it's still good practice to:
-
-1. **Set variables to empty** (`""`) when you're done with them to help the garbage collector
-2. **Reuse shapes** when possible, especially in animation loops
-3. **Minimize shape creation** in tight loops
-
-### Performance Considerations
-
-1. **Use the appropriate shape class** for your needs
-2. **Reuse shapes** instead of creating new ones for each frame
-3. **Use the scene graph** for managing multiple shapes
-4. **Batch drawing operations** by using a scene graph or drawing multiple shapes in a single beginDraw/endDraw pair
-
-## Conclusion
-
-The shape classes in `d2d1Shapes.ahk` provide a higher-level abstraction over the basic drawing methods in the `D2D1` class, making it easier to create, manipulate, and render shapes. By using these classes, you can create more complex and interactive graphics applications with less code.
-
-For more detailed information about other components of the Direct2D wrapper, please refer to the following documentation files:
-
-- [d2d1_documentation.md](d2d1_documentation.md): Documentation for the main D2D1 class
-- [d2d1Structs_Documentation.md](d2d1Structs_Documentation.md): Documentation for structure definitions
-- [D2D1Enums_Documentation.md](D2D1Enums_Documentation.md): Documentation for enumeration values
+**Parameters**:

@@ -23,27 +23,21 @@
 ;
 ; Author:         CasperHarkin
 ; Version:        0.1.0
-; Last Updated:   12/03/2025
+; Last Updated:   13/03/2025
 ;==================================================================================================================
 
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 #Include ..\Direct2D\d2d1.ahk
-#Include Robot.ahk
-#Include BattleManager.ahk
-#Include Debug.ahk
-
-; ==================== Game States ====================
-class GameState {
-    static MAIN_MENU := "MAIN_MENU"
-    static STORY := "STORY"
-    static ROBOT_CUSTOMIZATION := "ROBOT_CUSTOMIZATION"
-    static BATTLE_SELECTION := "BATTLE_SELECTION"
-    static BATTLE := "BATTLE"
-    static INVENTORY := "INVENTORY"
-    static GAME_OVER := "GAME_OVER"
-    static VICTORY := "VICTORY"
-}
+#Include .\Robot.ahk
+#Include .\BattleManager.ahk
+#Include .\Debug.ahk
+#Include .\SaveSystem.ahk
+#Include .\ItemSystem.ahk
+#Include .\Tutorial.ahk
+#Include .\GameState.ahk
+#Include .\GameRenderer.ahk
+#Include .\GameInput.ahk
 
 ; ==================== Robot Battle Game Class ====================
 class RobotBattleGame {
@@ -57,23 +51,38 @@ class RobotBattleGame {
     d2d := ""
     myGui := ""
     events := ""
-    
+    renderer := ""
+    inputHandler := ""
     
     ; Game data
     playerRobot := ""
     opponents := []
     currentOpponent := ""
     inventory := []
+    itemInventory := []
     storyProgress := 0
     battleManager := ""
+    saveSystem := ""
+    itemSystem := ""
     
     ; Menu properties
-    selectedMenuOption := 1  ; 1 = New Game, 2 = Load Game, 3 = Exit
+    selectedMenuOption := 1  ; 1 = New Game, 2 = Load Game, 3 = Settings, 4 = Exit
     
     ; Animation properties
     frameCount := 0
     lastFrameTime := 0
     fps := 0
+    
+    ; Notification properties
+    notification := ""
+    
+    ; Tutorial properties
+    tutorialManager := ""
+    
+    ; Settings properties
+    showSettings := false
+    selectedSettingsOption := 1
+    cheatModeEnabled := true
     
     ; Constructor
     __New() {
@@ -95,8 +104,24 @@ class RobotBattleGame {
         ; Initialize game data
         this._initializeGameData()
         
-        ; Set up hotkeys
-        this._configureHotkeys()
+        ; Initialize save system
+        this.saveSystem := SaveSystem()
+        
+        ; Initialize item system
+        this.itemSystem := ItemSystem()
+        
+        ; Add some starter items
+        this.itemSystem.addRandomItem(this)
+        this.itemSystem.addRandomItem(this)
+        
+        ; Initialize tutorial manager
+        this.tutorialManager := TutorialManager()
+        
+        ; Initialize renderer
+        this.renderer := GameRenderer(this)
+        
+        ; Initialize input handler
+        this.inputHandler := GameInput(this)
         
         ; Set up game timer (60 FPS)
         this.lastFrameTime := A_TickCount
@@ -127,7 +152,7 @@ class RobotBattleGame {
         this.currentOpponent := this.opponents[1]
         
         ; Initialize battle manager
-        this.battleManager := BattleManager(this.playerRobot, this.currentOpponent)
+        this.battleManager := BattleManager(this.playerRobot, this.currentOpponent, this)
     }
     
     ; Register event handlers
@@ -198,21 +223,6 @@ class RobotBattleGame {
         this.opponents.Push(overlord)
     }
     
-    ; Configure hotkeys
-    _configureHotkeys() {
-        ; Navigation
-        Hotkey("Space", ObjBindMethod(this, "OnConfirm"))
-        Hotkey("Escape", ObjBindMethod(this, "OnBack"))
-        Hotkey("Up", ObjBindMethod(this, "OnUp"))
-        Hotkey("Down", ObjBindMethod(this, "OnDown"))
-        Hotkey("Left", ObjBindMethod(this, "OnLeft"))
-        Hotkey("Right", ObjBindMethod(this, "OnRight"))
-        
-        ; Save/Load
-        Hotkey("F5", ObjBindMethod(this, "SaveGame"))
-        Hotkey("F9", ObjBindMethod(this, "LoadGame"))
-    }
-    
     ; ==================== Event Handlers ====================
     
     ; State change event handler
@@ -232,7 +242,7 @@ class RobotBattleGame {
         ; Initialize battle
         try {
             Debug("Attempting to create BattleManager", "BATTLE")
-            this.battleManager := BattleManager(this.playerRobot, this.currentOpponent)
+            this.battleManager := BattleManager(this.playerRobot, this.currentOpponent, this)
             Debug("battleManager initialized: " (this.battleManager ? "Yes" : "No"), "BATTLE")
             if (this.battleManager) {
                 Debug("battleManager.selectedAction = " this.battleManager.selectedAction, "BATTLE")
@@ -249,9 +259,24 @@ class RobotBattleGame {
             ; Player won, salvage part from opponent
             this.SalvagePart(loser)
             
+            ; Add a random item as reward
+            if (this.itemSystem) {
+                itemResult := this.itemSystem.addRandomItem(this)
+                if (itemResult.success) {
+                    Debug("Added " itemResult.item.name " to inventory", "SUCCESS")
+                    this.showNotification("Found " itemResult.item.name)
+                }
+            }
+            
             ; Progress story
             this.storyProgress++
             this.events.trigger("storyProgress", this.storyProgress)
+            
+            ; Auto-save the game after winning a battle
+            if (this.saveSystem) {
+                this.saveSystem.autoSave(this)
+                Debug("Auto-saved game after battle victory", "SUCCESS")
+            }
             
             ; Check if all opponents are defeated
             if (this.storyProgress >= this.opponents.Length) {
@@ -284,150 +309,6 @@ class RobotBattleGame {
         ; Update story elements based on progress
     }
     
-    ; ==================== Input Handlers ====================
-    ; Confirm/Select action
-    OnConfirm(*) {
-        Debug("OnConfirm called, currentState = " this.currentState, "INFO")
-        Debug("selectedMenuOption = " this.selectedMenuOption, "INFO")
-        
-        ; Use if-else statements instead of switch
-        if (this.currentState = GameState.MAIN_MENU) {
-            Debug("MAIN_MENU case entered", "STATE")
-            ; Handle main menu selection
-            if (this.selectedMenuOption = 1) { ; New Game
-                Debug("New Game option selected", "INFO")
-                ; Reset game state if needed
-                this.storyProgress := 0
-                this._initializeGameData()
-                Debug("About to change state to STORY", "STATE")
-                this.ChangeState(GameState.STORY)
-                Debug("Changed to STORY state", "STATE")
-            } else if (this.selectedMenuOption = 2) { ; Load Game
-                Debug("Load Game option selected", "INFO")
-                ; Load game functionality (not implemented yet)
-                ; For now, just show a message in the console
-                Debug("Load Game functionality not implemented yet", "WARN")
-            } else if (this.selectedMenuOption = 3) { ; Exit
-                Debug("Exit option selected", "INFO")
-                this.OnExit()
-            }
-        } else if (this.currentState = GameState.STORY) {
-            Debug("STORY case entered", "STATE")
-            this.ChangeState(GameState.ROBOT_CUSTOMIZATION)
-            Debug("Changed to ROBOT_CUSTOMIZATION state", "STATE")
-            OutputDebug("Changed to ROBOT_CUSTOMIZATION state")
-        } else if (this.currentState = GameState.ROBOT_CUSTOMIZATION) {
-            this.ChangeState(GameState.BATTLE_SELECTION)
-        } else if (this.currentState = GameState.BATTLE_SELECTION) {
-            this.ChangeState(GameState.BATTLE)
-            ; Initialize battle when entering battle state
-            this.events.trigger("battleStart", this.playerRobot, this.currentOpponent)
-        } else if (this.currentState = GameState.BATTLE) {
-            OutputDebug("BATTLE case entered in OnConfirm")
-            ; Handle battle action selection
-            if (this.battleManager) {
-                OutputDebug("battleManager exists, selectedAction = " this.battleManager.selectedAction)
-                ; Execute the selected action
-                this.battleManager.executePlayerAction()
-                
-                ; Check if battle ended
-                if (this.battleManager.battleEnded) {
-                    OutputDebug("Battle ended, winner = " this.battleManager.winner.name)
-                    ; Trigger battle end event
-                    this.events.trigger("battleEnd", this.battleManager.winner,
-                        this.battleManager.winner = this.playerRobot ? this.currentOpponent : this.playerRobot)
-                }
-            } else {
-                OutputDebug("ERROR: battleManager is null in BATTLE state")
-            }
-        } else if (this.currentState = GameState.INVENTORY) {
-            ; Handle inventory selection
-        } else if (this.currentState = GameState.GAME_OVER) {
-            this.ChangeState(GameState.MAIN_MENU)
-        } else if (this.currentState = GameState.VICTORY) {
-            this.ChangeState(GameState.MAIN_MENU)
-        }
-    }
-    
-    ; Back/Menu action
-    OnBack(*) {
-        OutputDebug("OnBack called, currentState = " this.currentState)
-        
-        if (this.currentState = GameState.MAIN_MENU) {
-            this.OnExit()
-        } else if (this.currentState = GameState.STORY) {
-            this.ChangeState(GameState.MAIN_MENU)
-        } else if (this.currentState = GameState.ROBOT_CUSTOMIZATION) {
-            this.ChangeState(GameState.MAIN_MENU)
-        } else if (this.currentState = GameState.BATTLE_SELECTION) {
-            this.ChangeState(GameState.ROBOT_CUSTOMIZATION)
-        } else if (this.currentState = GameState.BATTLE) {
-            ; If showing special menu, cancel it
-            if (this.battleManager && this.battleManager.showingSpecialMenu) {
-                this.battleManager.cancelSpecialMenu()
-            } else {
-                ; Confirm exit battle
-                this.ChangeState(GameState.BATTLE_SELECTION)
-            }
-        } else if (this.currentState = GameState.INVENTORY) {
-            this.ChangeState(GameState.ROBOT_CUSTOMIZATION)
-        }
-    }
-    
-    ; Navigate up
-    OnUp(*) {
-        ; Handle navigation based on current state
-        OutputDebug("OnUp called, currentState = " this.currentState)
-        
-        if (this.currentState = GameState.MAIN_MENU) {
-            ; Navigate up in main menu
-            if (this.selectedMenuOption > 1) {
-                this.selectedMenuOption--
-                OutputDebug("Selected menu option changed to " this.selectedMenuOption)
-            }
-        } else if (this.currentState = GameState.BATTLE) {
-            OutputDebug("BATTLE case entered in OnUp")
-            if (this.battleManager) {
-                OutputDebug("Calling battleManager.navigateUp()")
-                this.battleManager.navigateUp()
-            } else {
-                OutputDebug("ERROR: battleManager is null in OnUp")
-            }
-        }
-    }
-    
-    ; Navigate down
-    OnDown(*) {
-        ; Handle navigation based on current state
-        OutputDebug("OnDown called, currentState = " this.currentState)
-        
-        if (this.currentState = GameState.MAIN_MENU) {
-            ; Navigate down in main menu
-            if (this.selectedMenuOption < 3) {
-                this.selectedMenuOption++
-                OutputDebug("Selected menu option changed to " this.selectedMenuOption)
-            }
-        } else if (this.currentState = GameState.BATTLE) {
-            OutputDebug("BATTLE case entered in OnDown")
-            if (this.battleManager) {
-                OutputDebug("Calling battleManager.navigateDown()")
-                this.battleManager.navigateDown()
-            } else {
-                OutputDebug("ERROR: battleManager is null in OnDown")
-            }
-        }
-    }
-    
-    ; Navigate left
-    OnLeft(*) {
-        ; Handle navigation based on current state
-    }
-    
-    ; Navigate right
-    OnRight(*) {
-        ; Handle navigation based on current state
-    }
-    
     ; ==================== Game Functions ====================
     
     ; Change game state
@@ -453,13 +334,68 @@ class RobotBattleGame {
     }
     
     ; Save game
-    SaveGame(*) {
-        ; Implement save functionality
+    SaveGame(slot := 1, *) {
+        ; Save game to specified slot
+        success := this.saveSystem.saveGame(this, slot)
+        
+        if (success) {
+            Debug("Game saved to slot " slot, "SUCCESS")
+            
+            ; Show save notification
+            this.showNotification("Game saved to slot " slot)
+        } else {
+            Debug("Failed to save game to slot " slot, "ERROR")
+            
+            ; Show error notification
+            this.showNotification("Failed to save game", 0xFFFF0000)
+        }
+        
+        return success
     }
     
     ; Load game
-    LoadGame(*) {
-        ; Implement load functionality
+    LoadGame(slot := 1, *) {
+        ; Load game from specified slot
+        if (!this.saveSystem.saveExists(slot)) {
+            Debug("No save found in slot " slot, "WARN")
+            
+            ; Show notification
+            this.showNotification("No save found in slot " slot, 0xFFFFAA00)
+            return false
+        }
+        
+        success := this.saveSystem.loadGame(this, slot)
+        
+        if (success) {
+            Debug("Game loaded from slot " slot, "SUCCESS")
+            
+            ; Show load notification
+            this.showNotification("Game loaded from slot " slot)
+            
+            ; Update UI state
+            this.ChangeState(this.currentState)
+        } else {
+            Debug("Failed to load game from slot " slot, "ERROR")
+            
+            ; Show error notification
+            this.showNotification("Failed to load game", 0xFFFF0000)
+        }
+        
+        return success
+    }
+    
+    ; Show notification
+    showNotification(message, color := 0xFF00FF00, duration := 2000) {
+        ; Store notification data
+        this.notification := {
+            message: message,
+            color: color,
+            startTime: A_TickCount,
+            duration: duration
+        }
+        
+        ; Notification will be shown in Draw method
+        Debug("Showing notification: " message, "INFO")
     }
     
     ; ==================== Main Game Loop ====================
@@ -482,11 +418,22 @@ class RobotBattleGame {
         this.Update()
         
         ; Draw the scene
-        this.Draw()
+        this.renderer.Draw()
     }
     
     ; Update game state
     Update() {
+        ; Update tutorial if enabled
+        if (this.tutorialManager) {
+            this.tutorialManager.update(this.currentState, this)
+        }
+        
+        ; Apply cheat mode if enabled
+        if (this.cheatModeEnabled && this.playerRobot) {
+            ; Set player attack to 1000 when cheat mode is enabled
+            this.playerRobot.attack := 1000
+        }
+        
         ; Update based on current state
         if (this.currentState = GameState.MAIN_MENU) {
             ; Update main menu
@@ -501,6 +448,8 @@ class RobotBattleGame {
             ; Update battle
         } else if (this.currentState = GameState.INVENTORY) {
             ; Update inventory screen
+        } else if (this.currentState = GameState.SETTINGS) {
+            ; Update settings screen
         } else if (this.currentState = GameState.GAME_OVER) {
             ; Update game over screen
         } else if (this.currentState = GameState.VICTORY) {
@@ -508,427 +457,6 @@ class RobotBattleGame {
         } else {
             Debug("Unknown state in Update: " this.currentState, "ERROR")
         }
-    }
-    
-    ; Draw the scene
-    Draw() {
-        ; Check if dimensions are valid
-        if (this.width <= 0 || this.height <= 0) {
-            Debug("Invalid dimensions: width=" this.width ", height=" this.height, "ERROR")
-            return
-        }
-        
-        ; Check if D2D1 object is valid
-        if (!this.d2d || this.d2d == "") {
-            Debug("D2D1 object is not valid", "ERROR")
-            return
-        }
-        
-        try {
-            ; Begin drawing
-            this.d2d.beginDraw()
-            
-            ; Clear background with dark color
-            this.d2d.fillRectangle(0, 0, this.width, this.height, 0xFF1A1A1A)
-            
-            ; Draw current state indicator (debug)
-            this.d2d.drawText("Current State: " this.currentState, 10, 30, 12, 0xFFFFFFFF, "Arial", "w200 h20")
-            
-            ; Draw based on current state
-            Debug("Drawing state: " this.currentState, "INFO")
-        } catch as e {
-            Debug("Error in Draw method: " e.Message, "ERROR")
-            return
-        }
-        
-        try {
-            ; Use if-else statements instead of switch
-            if (this.currentState = GameState.MAIN_MENU) {
-                Debug("Drawing MAIN_MENU", "INFO")
-                this.DrawMainMenu()
-            } else if (this.currentState = GameState.STORY) {
-                Debug("Drawing STORY", "INFO")
-                this.DrawStoryScreen()
-            } else if (this.currentState = GameState.ROBOT_CUSTOMIZATION) {
-                Debug("Drawing ROBOT_CUSTOMIZATION", "INFO")
-                this.DrawCustomizationScreen()
-            } else if (this.currentState = GameState.BATTLE_SELECTION) {
-                Debug("Drawing BATTLE_SELECTION", "INFO")
-                this.DrawBattleSelectionScreen()
-            } else if (this.currentState = GameState.BATTLE) {
-                Debug("Drawing BATTLE", "INFO")
-                this.DrawBattleScreen()
-            } else if (this.currentState = GameState.INVENTORY) {
-                Debug("Drawing INVENTORY", "INFO")
-                this.DrawInventoryScreen()
-            } else if (this.currentState = GameState.GAME_OVER) {
-                Debug("Drawing GAME_OVER", "INFO")
-                this.DrawGameOverScreen()
-            } else if (this.currentState = GameState.VICTORY) {
-                Debug("Drawing VICTORY", "INFO")
-                this.DrawVictoryScreen()
-            } else {
-                Debug("Unknown state: " this.currentState, "ERROR")
-            }
-            
-            ; Draw FPS counter (debug)
-            this.d2d.drawText("FPS: " this.fps, 10, 10, 12, 0xFFFFFFFF, "Arial", "w100 h20")
-            
-            ; End drawing
-            this.d2d.endDraw()
-        } catch as e {
-            Debug("Error in Draw method (state rendering): " e.Message, "ERROR")
-        }
-    }
-    
-    ; ==================== Screen Drawing Functions ====================
-    
-    ; Draw main menu
-    DrawMainMenu() {
-        ; Draw title
-        this.d2d.drawText("ROBOT BATTLE", this.width/2 - 200, 150, 72, 0xFFFFFFFF, "Arial", "w400 h80 aCenter")
-        
-        ; Draw menu options with highlighting for selected option
-        menuOptions := ["New Game", "Load Game", "Exit"]
-        menuY := [300, 350, 400]
-        
-        ; Draw each menu option
-        for i, option in menuOptions {
-            ; Set color based on selection
-            color := (i = this.selectedMenuOption) ? 0xFFFFFFFF : 0xFFAAAAAA
-            
-            ; Draw option text
-            this.d2d.drawText(option, this.width/2 - 100, menuY[i], 36, color, "Arial", "w200 h40 aCenter")
-            
-            ; Draw selection indicator if this is the selected option
-            if (i = this.selectedMenuOption) {
-                this.d2d.fillRectangle(this.width/2 - 120, menuY[i] + 18, 10, 10, 0xFFFFFFFF)
-            }
-        }
-        
-        ; Draw instructions
-        this.d2d.drawText("Up/Down - Navigate", this.width/2 - 150, this.height - 130, 24, 0xFFFFFFFF, "Arial", "w300 h30 aCenter")
-        this.d2d.drawText("SPACE - Select", this.width/2 - 150, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w300 h30 aCenter")
-    }
-    
-    ; Draw story screen
-    DrawStoryScreen() {
-        OutputDebug("DrawStoryScreen called")
-        
-        ; Draw story title
-        this.d2d.drawText("THE WASTELAND", this.width/2 - 200, 100, 48, 0xFFFFFFFF, "Arial", "w400 h60 aCenter")
-        
-        ; Draw story text based on progress
-        storyText := "In a desolate alien wasteland, robots fight for survival and supremacy.`n`n"
-                   . "You are a lone robot, scavenging for parts to improve yourself.`n`n"
-                   . "Defeat other robots to salvage their parts and become stronger.`n`n"
-                   . "Discover the secrets of the wasteland and why it became this way."
-        
-        this.d2d.drawText(storyText, this.width/2 - 300, 200, 24, 0xFFFFFFFF, "Arial", "w600 h300 aCenter")
-        
-        ; Draw continue prompt
-        this.d2d.drawText("Press SPACE to continue", this.width/2 - 150, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w300 h30 aCenter")
-        
-        ; Draw debug info
-        this.d2d.drawText("Current State: STORY", 10, 50, 14, 0xFFFFFFFF, "Arial", "w200 h20")
-        this.d2d.drawText("Press SPACE to continue to ROBOT_CUSTOMIZATION", 10, 70, 14, 0xFFFFFFFF, "Arial", "w400 h20")
-    }
-    
-    ; Draw customization screen
-    DrawCustomizationScreen() {
-        ; Draw screen title
-        this.d2d.drawText("ROBOT CUSTOMIZATION", this.width/2 - 250, 50, 48, 0xFFFFFFFF, "Arial", "w500 h60 aCenter")
-        
-        ; Draw robot preview (placeholder)
-        this.d2d.fillRectangle(this.width/2 - 100, 150, 200, 300, 0xFF444444)
-        
-        ; Draw equipped parts list
-        this.d2d.drawText("Equipped Parts:", 50, 150, 24, 0xFFFFFFFF, "Arial", "w200 h30")
-        
-        yPos := 190
-        for partType in ["head", "torso", "leftArm", "rightArm", "leftLeg", "rightLeg", "powerCore"] {
-            part := this.playerRobot.getPart(partType)
-            partName := part ? part.name : "None"
-            partRarity := part ? part.rarity : ""
-            
-            ; Set color based on rarity
-            color := 0xFFAAAAAA  ; Default gray
-            if (partRarity = "poor")
-                color := 0xFFFFFFFF  ; White
-            else if (partRarity = "good")
-                color := 0xFF00AAFF  ; Blue
-            else if (partRarity = "epic")
-                color := 0xFFAA00FF  ; Purple
-            
-            this.d2d.drawText(partType ": " partName, 70, yPos, 18, color, "Arial", "w300 h24")
-            yPos += 30
-        }
-        
-        ; Draw stats
-        this.d2d.drawText("Stats:", this.width - 350, 150, 24, 0xFFFFFFFF, "Arial", "w100 h30")
-        
-        yPos := 190
-        stats := this.playerRobot.getStats()
-        for statName, statValue in stats {
-            this.d2d.drawText(statName ": " statValue, this.width - 330, yPos, 18, 0xFFFFFFFF, "Arial", "w200 h24")
-            yPos += 30
-        }
-        
-        ; Draw navigation options
-        this.d2d.drawText("I - Inventory", 50, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w200 h30")
-        this.d2d.drawText("SPACE - Continue to Battle", this.width/2 - 150, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w300 h30 aCenter")
-        this.d2d.drawText("ESC - Back to Menu", this.width - 250, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w200 h30 aRight")
-    }
-    
-    ; Draw battle selection screen
-    DrawBattleSelectionScreen() {
-        ; Draw screen title
-        this.d2d.drawText("BATTLE SELECTION", this.width/2 - 200, 50, 48, 0xFFFFFFFF, "Arial", "w400 h60 aCenter")
-        
-        ; Draw opponent info
-        this.d2d.drawText("Next Opponent:", this.width/2 - 150, 150, 36, 0xFFFFFFFF, "Arial", "w300 h40 aCenter")
-        this.d2d.drawText(this.currentOpponent.name, this.width/2 - 150, 200, 48, 0xFFFF0000, "Arial", "w300 h60 aCenter")
-        this.d2d.drawText(this.currentOpponent.description, this.width/2 - 250, 260, 24, 0xFFFFFFFF, "Arial", "w500 h60 aCenter")
-        
-        ; Draw opponent preview (placeholder)
-        this.d2d.fillRectangle(this.width/2 - 100, 330, 200, 300, 0xFF444444)
-        
-        ; Draw navigation options
-        this.d2d.drawText("SPACE - Start Battle", this.width/2 - 150, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w300 h30 aCenter")
-        this.d2d.drawText("ESC - Back to Customization", this.width - 300, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w300 h30 aRight")
-    }
-    
-    ; Draw battle screen
-    DrawBattleScreen() {
-        ; Draw battle arena
-        this.d2d.fillRectangle(0, this.height - 200, this.width, 200, 0xFF333333)  ; Ground
-        
-        ; Draw player robot (placeholder)
-        this.d2d.fillRectangle(200, this.height - 350, 150, 250, 0xFF0000FF)
-        
-        ; Draw enemy robot (placeholder)
-        this.d2d.fillRectangle(this.width - 350, this.height - 350, 150, 250, 0xFFFF0000)
-        
-        ; Draw health bars
-        ; Player health
-        this.d2d.fillRectangle(50, 50, 300, 30, 0xFF333333)
-        
-        ; Calculate health bar width with safety check
-        playerHealthRatio := (this.playerRobot && this.playerRobot.maxHealth > 0)
-            ? Max(0, Min(1, this.playerRobot.health / this.playerRobot.maxHealth))
-            : 0
-        healthBarWidth := 300 * playerHealthRatio
-        
-        ; Ensure width is positive
-        if (healthBarWidth > 0)
-            this.d2d.fillRectangle(50, 50, healthBarWidth, 30, 0xFF00FF00)
-            
-        this.d2d.drawText(this.playerRobot.name, 50, 20, 24, 0xFFFFFFFF, "Arial", "w200 h30")
-        
-        ; Enemy health
-        this.d2d.fillRectangle(this.width - 350, 50, 300, 30, 0xFF333333)
-        
-        ; Calculate enemy health bar width with safety check
-        enemyHealthRatio := (this.currentOpponent && this.currentOpponent.maxHealth > 0)
-            ? Max(0, Min(1, this.currentOpponent.health / this.currentOpponent.maxHealth))
-            : 0
-        enemyHealthBarWidth := 300 * enemyHealthRatio
-        
-        ; Ensure width is positive
-        if (enemyHealthBarWidth > 0)
-            this.d2d.fillRectangle(this.width - 350, 50, enemyHealthBarWidth, 30, 0xFFFF0000)
-            
-        this.d2d.drawText(this.currentOpponent.name, this.width - 350, 20, 24, 0xFFFFFFFF, "Arial", "w200 h30")
-        
-        ; Draw energy bars
-        ; Player energy
-        this.d2d.fillRectangle(50, 90, 300, 15, 0xFF333333)
-        
-        ; Calculate energy bar width with safety check
-        playerEnergyRatio := (this.playerRobot && this.playerRobot.maxEnergy > 0)
-            ? Max(0, Min(1, this.playerRobot.energy / this.playerRobot.maxEnergy))
-            : 0
-        energyBarWidth := 300 * playerEnergyRatio
-        
-        ; Ensure width is positive
-        if (energyBarWidth > 0)
-            this.d2d.fillRectangle(50, 90, energyBarWidth, 15, 0xFF00FFFF)
-        
-        ; Enemy energy
-        this.d2d.fillRectangle(this.width - 350, 90, 300, 15, 0xFF333333)
-        
-        ; Calculate enemy energy bar width with safety check
-        enemyEnergyRatio := (this.currentOpponent && this.currentOpponent.maxEnergy > 0)
-            ? Max(0, Min(1, this.currentOpponent.energy / this.currentOpponent.maxEnergy))
-            : 0
-        enemyEnergyBarWidth := 300 * enemyEnergyRatio
-        
-        ; Ensure width is positive
-        if (enemyEnergyBarWidth > 0)
-            this.d2d.fillRectangle(this.width - 350, 90, enemyEnergyBarWidth, 15, 0xFF00FFFF)
-        
-        ; Check if battle manager is initialized
-        Debug("DrawBattleScreen: battleManager is " (this.battleManager ? "initialized" : "null"), "BATTLE")
-        if (this.battleManager) {
-            ; Draw turn indicator
-            turnText := this.battleManager.isPlayerTurn ? "Your Turn" : "Enemy Turn"
-            turnColor := this.battleManager.isPlayerTurn ? 0xFF00FF00 : 0xFFFF0000
-            this.d2d.drawText(turnText, this.width / 2 - 50, 20, 24, turnColor, "Arial", "w100 h30 aCenter")
-            
-            ; Draw battle actions
-            actionColors := Map(1, 0xFF444444, 2, 0xFF444444, 3, 0xFF444444, 4, 0xFF444444)
-            actionColors[this.battleManager.selectedAction] := 0xFF666666  ; Highlight selected action
-            Debug("Battle action colors: " actionColors[1] ", " actionColors[2] ", " actionColors[3] ", " actionColors[4], "BATTLE")
-            Debug("Selected action: " this.battleManager.selectedAction, "BATTLE")
-            
-            ; Draw main battle actions
-            this.d2d.fillRoundedRectangle(50, this.height - 150, 200, 50, 10, 10, actionColors.Get(1, 0xFF444444))
-            this.d2d.drawText("Attack", 150, this.height - 150, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            this.d2d.fillRoundedRectangle(50, this.height - 90, 200, 50, 10, 10, actionColors.Get(2, 0xFF444444))
-            this.d2d.drawText("Defend", 150, this.height - 90, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            this.d2d.fillRoundedRectangle(260, this.height - 150, 200, 50, 10, 10, actionColors.Get(3, 0xFF444444))
-            this.d2d.drawText("Special", 360, this.height - 150, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            this.d2d.fillRoundedRectangle(260, this.height - 90, 200, 50, 10, 10, actionColors.Get(4, 0xFF444444))
-            this.d2d.drawText("Item", 360, this.height - 90, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            ; Draw special menu if showing
-            if (this.battleManager.showingSpecialMenu) {
-                ; Draw special abilities menu
-                this.d2d.fillRectangle(50, this.height - 350, 410, 190, 0xFF222222)
-                this.d2d.drawText("Special Abilities", 50, this.height - 350, 24, 0xFFFFFFFF, "Arial", "w410 h30 aCenter")
-                
-                ; Draw available special abilities
-                yPos := this.height - 310
-                for i, special in this.battleManager.availableSpecials {
-                    ; Highlight selected special
-                    bgColor := (i = this.battleManager.selectedSpecial) ? 0xFF666666 : 0xFF444444
-                    
-                    ; Set color based on element type
-                    textColor := 0xFFFFFFFF  ; Default white
-                    if (special.elementType = "fire") {
-                        textColor := 0xFFFF5555  ; Red
-                    } else if (special.elementType = "ice") {
-                        textColor := 0xFF55FFFF  ; Cyan
-                    } else if (special.elementType = "lightning") {
-                        textColor := 0xFFFFFF55  ; Yellow
-                    } else if (special.elementType = "acid") {
-                        textColor := 0xFF55FF55  ; Green
-                    } else if (special.elementType = "shadow") {
-                        textColor := 0xFFAA55FF  ; Purple
-                    }
-                    
-                    ; Draw special ability
-                    this.d2d.fillRectangle(60, yPos, 390, 30, bgColor)
-                    this.d2d.drawText(special.name " (" special.energyCost " energy)", 70, yPos, 18, textColor, "Arial", "w300 h30")
-                    this.d2d.drawText(special.description, 70, yPos + 20, 14, 0xFFAAAAAA, "Arial", "w300 h20")
-                    
-                    yPos += 60
-                }
-                
-                ; Draw instructions
-                this.d2d.drawText("Up/Down to select, SPACE to use, ESC to cancel", 50, this.height - 160, 14, 0xFFAAAAAA, "Arial", "w410 h20 aCenter")
-            }
-            
-            ; Draw battle log
-            this.d2d.fillRectangle(this.width - 350, this.height - 150, 300, 110, 0xFF222222)
-            this.d2d.drawText("Battle Log", this.width - 350, this.height - 170, 18, 0xFFFFFFFF, "Arial", "w300 h20")
-            
-            ; Draw battle log entries
-            yPos := this.height - 140
-            for i, logEntry in this.battleManager.battleLog {
-                this.d2d.drawText(logEntry, this.width - 340, yPos, 14, 0xFFFFFFFF, "Arial", "w280 h20")
-                yPos += 20
-            }
-        } else {
-            ; Draw default battle actions if battle manager not initialized
-            this.d2d.fillRoundedRectangle(50, this.height - 150, 200, 50, 10, 10, 0xFF444444)
-            this.d2d.drawText("Attack", 150, this.height - 150, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            this.d2d.fillRoundedRectangle(50, this.height - 90, 200, 50, 10, 10, 0xFF444444)
-            this.d2d.drawText("Defend", 150, this.height - 90, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            this.d2d.fillRoundedRectangle(260, this.height - 150, 200, 50, 10, 10, 0xFF444444)
-            this.d2d.drawText("Special", 360, this.height - 150, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            this.d2d.fillRoundedRectangle(260, this.height - 90, 200, 50, 10, 10, 0xFF444444)
-            this.d2d.drawText("Item", 360, this.height - 90, 24, 0xFFFFFFFF, "Arial", "w200 h50 aCenter vCenter")
-            
-            ; Draw battle log
-            this.d2d.fillRectangle(this.width - 350, this.height - 150, 300, 110, 0xFF222222)
-            this.d2d.drawText("Battle Log", this.width - 350, this.height - 170, 18, 0xFFFFFFFF, "Arial", "w300 h20")
-            this.d2d.drawText("Battle starting...", this.width - 340, this.height - 140, 14, 0xFFFFFFFF, "Arial", "w280 h100")
-        }
-    }
-    
-    ; Draw inventory screen
-    DrawInventoryScreen() {
-        ; Draw screen title
-        this.d2d.drawText("INVENTORY", this.width/2 - 150, 50, 48, 0xFFFFFFFF, "Arial", "w300 h60 aCenter")
-        
-        ; Draw inventory items
-        this.d2d.drawText("Salvaged Parts:", 50, 150, 24, 0xFFFFFFFF, "Arial", "w200 h30")
-        
-        if (this.inventory.Length = 0) {
-            this.d2d.drawText("No parts in inventory", 70, 190, 18, 0xFFAAAAAA, "Arial", "w300 h24")
-        } else {
-            yPos := 190
-            for i, part in this.inventory {
-                ; Set color based on rarity
-                color := 0xFFAAAAAA  ; Default gray
-                if (part.rarity = "poor")
-                    color := 0xFFFFFFFF  ; White
-                else if (part.rarity = "good")
-                    color := 0xFF00AAFF  ; Blue
-                else if (part.rarity = "epic")
-                    color := 0xFFAA00FF  ; Purple
-                
-                this.d2d.drawText(part.type ": " part.name, 70, yPos, 18, color, "Arial", "w300 h24")
-                yPos += 30
-                
-                ; Limit display to prevent overflow
-                if (i >= 10) {
-                    this.d2d.drawText("... and " (this.inventory.Length - 10) " more", 70, yPos, 18, 0xFFAAAAAA, "Arial", "w300 h24")
-                    break
-                }
-            }
-        }
-        
-        ; Draw navigation options
-        this.d2d.drawText("ESC - Back to Customization", this.width - 300, this.height - 100, 24, 0xFFFFFFFF, "Arial", "w300 h30 aRight")
-    }
-    
-    ; Draw game over screen
-    DrawGameOverScreen() {
-        ; Draw game over message
-        this.d2d.drawText("GAME OVER", this.width/2 - 200, 200, 72, 0xFFFF0000, "Arial", "w400 h80 aCenter")
-        
-        ; Draw defeat message
-        this.d2d.drawText("Your robot was defeated by " this.currentOpponent.name, 
-                         this.width/2 - 300, 300, 36, 0xFFFFFFFF, "Arial", "w600 h40 aCenter")
-        
-        ; Draw restart prompt
-        this.d2d.drawText("Press SPACE to return to main menu", 
-                         this.width/2 - 250, this.height - 200, 24, 0xFFFFFFFF, "Arial", "w500 h30 aCenter")
-    }
-    
-    ; Draw victory screen
-    DrawVictoryScreen() {
-        ; Draw victory message
-        this.d2d.drawText("VICTORY!", this.width/2 - 150, 200, 72, 0xFF00FF00, "Arial", "w300 h80 aCenter")
-        
-        ; Draw victory text
-        victoryText := "You have defeated all opponents and uncovered the secrets of the wasteland.`n`n"
-                     . "The Overlord has been defeated, but the wasteland remains.`n`n"
-                     . "Perhaps there are more secrets to discover..."
-        
-        this.d2d.drawText(victoryText, this.width/2 - 300, 300, 24, 0xFFFFFFFF, "Arial", "w600 h200 aCenter")
-        
-        ; Draw restart prompt
-        this.d2d.drawText("Press SPACE to return to main menu", 
-                         this.width/2 - 250, this.height - 200, 24, 0xFFFFFFFF, "Arial", "w500 h30 aCenter")
     }
     
     ; ==================== Window Event Handlers ====================
